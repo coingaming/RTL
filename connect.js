@@ -230,12 +230,29 @@ connect.setSSOParams = (config) => {
 };
 
 connect.createDirectory = (dirname) => {
+<<<<<<< Updated upstream
   try {
     const initDir = path.isAbsolute(dirname) ? path.sep : '';
     dirname.split(path.sep).reduce((parentDir, childDir) => {
       const curDir = path.resolve(parentDir, childDir);
       if (!fs.existsSync(curDir)) {
         fs.mkdirSync(curDir);
+=======
+  const initDir = path.isAbsolute(dirname) ? path.sep : '';
+  dirname.split(path.sep).reduce((parentDir, childDir) => {
+    const curDir = path.resolve(parentDir, childDir);
+    try {
+      if (!fs.existsSync(curDir)) {
+        fs.mkdirSync(curDir);
+      }
+    } catch (err) {
+      if (err.code !== 'EEXIST') {
+        if (err.code === 'ENOENT') {
+          throw new Error(`ENOENT: No such file or directory, mkdir '${dirname}'. Ensure that channel backup path separator is '${(platform === 'win32') ? '\\\\' : '/'}'`);
+        } else {
+          throw err;
+        }
+>>>>>>> Stashed changes
       }
       return curDir;
     }, initDir);
