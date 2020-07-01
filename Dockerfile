@@ -1,6 +1,6 @@
 FROM node:10-alpine
 
-RUN apk add --no-cache tini
+RUN apk add --no-cache tini xxd
 
 WORKDIR /RTL
 
