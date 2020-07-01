@@ -1,100 +1,55 @@
-version: 2
+version: 2.1
+
+commands:
+  docker_build:
+    steps:
+      - run:
+          name: Docker build
+          command: ~/project/release.sh
+  docker_push:
+    steps:
+      - run:
+          name: Docker login
+          command: echo -e "$DOCKER_PASS" | docker login -u $DOCKER_USER --password-stdin
+      - run:
+          name: Docker push
+          command: ~/project/release.sh --push
+
 jobs:
-  # Define in CircleCi Project Variables: $DOCKERHUB_REPO, $DOCKERHUB_USER, $DOCKERHUB_PASS
-  # Publish jobs require those variables
-  publish_docker_linuxamd64:
+  release:
     machine:
       docker_layer_caching: false
+    working_directory: ~/project
     steps:
-      - checkout  
-      - run:
-          command: |
-            LATEST_TAG="${CIRCLE_TAG:1}"
-            DOCKERHUB_DESTINATION="$DOCKERHUB_REPO:$LATEST_TAG-amd64"
-            DOCKERHUB_DOCKERFILE="Dockerfile"
-            sudo docker login --username=$DOCKERHUB_USER --password=$DOCKERHUB_PASS
-            sudo docker build --pull -t "$DOCKERHUB_DESTINATION" -f "$DOCKERHUB_DOCKERFILE" .
-            sudo docker push "$DOCKERHUB_DESTINATION"
-
-  publish_docker_linuxarm32v7:
-    machine:
-      docker_layer_caching: false
-    steps:
-      - checkout  
-      - run:
-          command: |
-            sudo docker run --rm --privileged multiarch/qemu-user-static:register --reset
-            LATEST_TAG="${CIRCLE_TAG:1}"
-            DOCKERHUB_DESTINATION="$DOCKERHUB_REPO:$LATEST_TAG-arm32v7"
-            DOCKERHUB_DOCKERFILE="Dockerfile.arm32v7"
-            sudo docker login --username=$DOCKERHUB_USER --password=$DOCKERHUB_PASS
-            sudo docker build --pull -t "$DOCKERHUB_DESTINATION" -f "$DOCKERHUB_DOCKERFILE" .
-            sudo docker push "$DOCKERHUB_DESTINATION"
-
-  publish_docker_linuxarm64v8:
-    machine:
-      docker_layer_caching: false
-    steps:
-      - checkout  
-      - run:
-          command: |
-            sudo docker run --rm --privileged multiarch/qemu-user-static:register --reset
-            LATEST_TAG="${CIRCLE_TAG:1}"
-            DOCKERHUB_DESTINATION="$DOCKERHUB_REPO:$LATEST_TAG-arm64v8"
-            DOCKERHUB_DOCKERFILE="Dockerfile.arm64v8"
-            sudo docker login --username=$DOCKERHUB_USER --password=$DOCKERHUB_PASS
-            sudo docker build --pull -t "$DOCKERHUB_DESTINATION" -f "$DOCKERHUB_DOCKERFILE" .
-            sudo docker push "$DOCKERHUB_DESTINATION"
-
-  publish_docker_multiarch:
+      - checkout
+      - docker_build
+  release-publish:
     machine:
       enabled: true
       image: circleci/classic:201808-01
+    working_directory: ~/project
     steps:
-      - run:
-          command: |
-            # Turn on Experimental features
-            LATEST_TAG="${CIRCLE_TAG:1}"
-            sudo mkdir $HOME/.docker
-            sudo sh -c 'echo "{ \"experimental\": \"enabled\" }" >> $HOME/.docker/config.json'
-            #
-            sudo docker login --username=$DOCKERHUB_USER --password=$DOCKERHUB_PASS
-            #
-            sudo docker manifest create --amend "$DOCKERHUB_REPO:$LATEST_TAG" "$DOCKERHUB_REPO:$LATEST_TAG-amd64" "$DOCKERHUB_REPO:$LATEST_TAG-arm32v7" "$DOCKERHUB_REPO:$LATEST_TAG-arm64v8"
-            sudo docker manifest annotate "$DOCKERHUB_REPO:$LATEST_TAG" "$DOCKERHUB_REPO:$LATEST_TAG-amd64" --os linux --arch amd64
-            sudo docker manifest annotate "$DOCKERHUB_REPO:$LATEST_TAG" "$DOCKERHUB_REPO:$LATEST_TAG-arm32v7" --os linux --arch arm --variant v7
-            sudo docker manifest annotate "$DOCKERHUB_REPO:$LATEST_TAG" "$DOCKERHUB_REPO:$LATEST_TAG-arm64v8" --os linux --arch arm64 --variant v8
-            sudo docker manifest push "$DOCKERHUB_REPO:$LATEST_TAG" -p
+      - checkout
+      - docker_build
+      - docker_push
+
+filters: &filters
+  filters:
+    branches: {}
 
 workflows:
   version: 2
-  publish:
+  nightly:
+    triggers:
+      - schedule:
+          <<: *filters
+          cron: "0 5 * * *"
     jobs:
-      - publish_docker_linuxamd64:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /v(?:(?<major>(?:0|[1-9](?:(?:0|[1-9])+)*))[.](?<minor>(?:0|[1-9](?:(?:0|[1-9])+)*))[.](?<patch>(?:0|[1-9](?:(?:0|[1-9])+)*))(?:-(?:([A-Za-z1-9])*))?)$/
-      - publish_docker_linuxarm32v7:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /v(?:(?<major>(?:0|[1-9](?:(?:0|[1-9])+)*))[.](?<minor>(?:0|[1-9](?:(?:0|[1-9])+)*))[.](?<patch>(?:0|[1-9](?:(?:0|[1-9])+)*))(?:-(?:([A-Za-z1-9])*))?)$/
-      - publish_docker_linuxarm64v8:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /v(?:(?<major>(?:0|[1-9](?:(?:0|[1-9])+)*))[.](?<minor>(?:0|[1-9](?:(?:0|[1-9])+)*))[.](?<patch>(?:0|[1-9](?:(?:0|[1-9])+)*))(?:-(?:([A-Za-z1-9])*))?)$/
-      - publish_docker_multiarch:
-          requires:
-            - publish_docker_linuxamd64
-            - publish_docker_linuxarm32v7
-            - publish_docker_linuxarm64v8
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /v(?:(?<major>(?:0|[1-9](?:(?:0|[1-9])+)*))[.](?<minor>(?:0|[1-9](?:(?:0|[1-9])+)*))[.](?<patch>(?:0|[1-9](?:(?:0|[1-9])+)*))(?:-(?:([A-Za-z1-9])*))?)$/
+      - release:
+          <<: *filters
+          context: global
+  push:
+    jobs:
+      - release-publish:
+          <<: *filters
+          context: global
