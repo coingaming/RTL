@@ -14,6 +14,4 @@ COPY . /RTL
 
 EXPOSE 3000
 
-ENTRYPOINT ["/sbin/tini", "-g", "--"]
-
-CMD ["/RTL/entrypoint.sh"]
+ENTRYPOINT ["/sbin/tini", "-g", "--", "/RTL/entrypoint.sh"]
