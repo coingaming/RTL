@@ -16,4 +16,4 @@ EXPOSE 3000
 
 ENTRYPOINT ["/sbin/tini", "-g", "--"]
 
-CMD ["node", "rtl"]
+CMD ["entrypoint.sh"]
