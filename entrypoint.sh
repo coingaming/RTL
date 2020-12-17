@@ -2,6 +2,16 @@
 
 set -e
 
+if [[ ! -z "$RTL_CONFIG_JSON" ]]
+then
+  export RTL_CONFIG_JSON_B64="$(echo "$RTL_CONFIG_JSON" | base64)"
+fi
+
+if [[ ! -z "$RTL_CONFIG_NODES_JSON" ]]
+then
+  export RTL_CONFIG_NODES_JSON_B64="$(echo "$RTL_CONFIG_NODES_JSON" | base64)"
+fi
+
 echo "$(echo $RTL_CONFIG_JSON_B64 | base64 -d) \
 $(echo $RTL_CONFIG_NODES_JSON_B64 | base64 -d)" | \
 jq -s '.[0] + {defaultNodeIndex: .[1][0].index} + {} + {nodes: .[1] | map({index: .index, lnNode: ("LND" + (.index | tostring)), lnImplementation: "LND", Authentication: {macaroonPath: ("/LN/LND" + (.index | tostring)), configPath: ""}, Settings: {userPersona: "OPERATOR", themeMode: "DAY", themeColor: "PURPLE", channelBackupPath: ("/LN/LND" + (.index | tostring) + "/backup"), enableLogging: false, lnServerUrl: .lnServerUrl, swapServerUrl: "", fiatConversion: false}})}' > RTL-Config.json && \
