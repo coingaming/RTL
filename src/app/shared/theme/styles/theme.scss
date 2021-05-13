@@ -4,9 +4,9 @@
 @import 'theme-mode-light';
 @import 'theme-color';
 @import 'typography';
-@include mat-core();
 
 .rtl-container{
+  @include mat-core(); //CHECK IF MATERIAL STYLES BEHAVE STRANGELY
   &.purple {
     @import "../skins/purple";
     &.small {@include theme-font($small-typography);}
@@ -101,6 +101,22 @@
       @include angular-material-theme($pink-night-theme);
       @include theme-mode-dark($pink-night-theme);
       @include theme-color($pink-night-theme);
+    }
+  }
+  &.yellow{
+    @import "../skins/yellow";
+    &.small {@include theme-font($small-typography);}
+    &.medium {@include theme-font($medium-typography);}
+    &.large {@include theme-font($large-typography);}
+    &.day {
+      @include angular-material-theme($yellow-day-theme);
+      @include theme-mode-light($yellow-day-theme);
+      @include theme-color($yellow-day-theme);
+    }
+    &.night {
+      @include angular-material-theme($yellow-night-theme);
+      @include theme-mode-dark($yellow-night-theme);
+      @include theme-color($yellow-night-theme);
     }
   }
 }

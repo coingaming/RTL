@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, Output, EventEmitter, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, Output, EventEmitter, ViewChild, TemplateRef } from '@angular/core';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
@@ -19,6 +19,7 @@ import { RTLEffects } from '../../../../store/rtl.effects';
 import * as RTLActions from '../../../../store/rtl.actions';
 import * as fromRTLReducer from '../../../../store/rtl.reducers';
 import { AlertTypeEnum, UserPersonaEnum } from '../../../services/consts-enums-functions';
+import { CommonService } from '../../../services/common.service';
 
 @Component({
   selector: 'rtl-side-navigation',
@@ -26,7 +27,7 @@ import { AlertTypeEnum, UserPersonaEnum } from '../../../services/consts-enums-f
   styleUrls: ['./side-navigation.component.scss']
 })
 export class SideNavigationComponent implements OnInit, OnDestroy {
-  @ViewChild(MatTree, { static: true }) tree: any;
+  @ViewChild(MatTree, { static: false }) tree: any;
   @Output() ChildNavClicked = new EventEmitter<any>();
   faEject = faEject;
   faEye = faEye;
@@ -52,7 +53,7 @@ export class SideNavigationComponent implements OnInit, OnDestroy {
   navMenusLogout = new MatTreeNestedDataSource<MenuChildNode>();
   navMenusShowData = new MatTreeNestedDataSource<MenuChildNode>();
 
-  constructor(private logger: LoggerService, private sessionService: SessionService, private store: Store<fromRTLReducer.RTLState>, private actions$: Actions, private rtlEffects: RTLEffects) {
+  constructor(private logger: LoggerService, private commonService: CommonService, private sessionService: SessionService, private store: Store<fromRTLReducer.RTLState>, private actions$: Actions, private rtlEffects: RTLEffects) {
     this.version = environment.VERSION;
     if (MENU_DATA.LNDChildren[MENU_DATA.LNDChildren.length - 1].id === 200) {
       MENU_DATA.LNDChildren.pop();
@@ -133,36 +134,58 @@ export class SideNavigationComponent implements OnInit, OnDestroy {
   }
   
   filterSideMenuNodes() {
-    if(this.selNode && this.selNode.lnImplementation && this.selNode.lnImplementation.toUpperCase() === 'CLT') {
-      let versionsArr = [];
-      if(this.information && this.information.api_version) { 
-        versionsArr = this.information.api_version.split('.'); 
+    if(this.selNode && this.selNode.lnImplementation) {
+      switch (this.selNode.lnImplementation.toUpperCase()) {
+        case 'CLT':
+          this.loadCLTMenu();
+          break;
+      
+        case 'ECL':
+          this.loadECLMenu();
+          break;
+
+        default:
+          this.loadLNDMenu();
+          break;
       }
-      let clonedMenu = [];
-      clonedMenu = JSON.parse(JSON.stringify(MENU_DATA.CLChildren));
-      this.navMenus.data = clonedMenu.filter(navMenuData => {
-        if(navMenuData.children && navMenuData.children.length) {
-          navMenuData.children = navMenuData.children.filter(navMenuChild => {
-            return ((navMenuChild.userPersona === UserPersonaEnum.ALL || navMenuChild.userPersona === this.settings.userPersona) && navMenuChild.link !== '/cl/signverify')
-            || (navMenuChild.link === '/cl/signverify' && (+versionsArr[0] > 0 || +versionsArr[1] > 2 || (+versionsArr[1] > 1 && +versionsArr[2] > 1)));
-          });
-        }
-        return navMenuData.userPersona === UserPersonaEnum.ALL || navMenuData.userPersona === this.settings.userPersona;
-      });
     } else {
-      let clonedMenu = [];
-      clonedMenu = JSON.parse(JSON.stringify(MENU_DATA.LNDChildren));
-      this.navMenus.data = clonedMenu.filter(navMenuData => {
-        if(navMenuData.children && navMenuData.children.length) {
-          navMenuData.children = navMenuData.children.filter(navMenuChild => {
-            return ((navMenuChild.userPersona === UserPersonaEnum.ALL || navMenuChild.userPersona === this.settings.userPersona) && navMenuChild.link !== '/lnd/loop')
-            || (navMenuChild.link === '/lnd/loop' && this.settings.swapServerUrl && this.settings.swapServerUrl.trim() !== '');
-          });
-        }
-        return navMenuData.userPersona === UserPersonaEnum.ALL || navMenuData.userPersona === this.settings.userPersona;
-      });
+      this.loadLNDMenu();
     }
   } 
+
+  loadLNDMenu() {
+    let clonedMenu = [];
+    clonedMenu = JSON.parse(JSON.stringify(MENU_DATA.LNDChildren));
+    this.navMenus.data = clonedMenu.filter(navMenuData => {
+      if(navMenuData.children && navMenuData.children.length) {
+        navMenuData.children = navMenuData.children.filter(navMenuChild => {
+          return ((navMenuChild.userPersona === UserPersonaEnum.ALL || navMenuChild.userPersona === this.settings.userPersona) && navMenuChild.link !== '/services/loop' && navMenuChild.link !== '/services/boltz')
+          || (navMenuChild.link === '/services/loop' && this.settings.swapServerUrl && this.settings.swapServerUrl.trim() !== '')
+          || (navMenuChild.link === '/services/boltz' && this.settings.boltzServerUrl && this.settings.boltzServerUrl.trim() !== '');
+        });
+        return navMenuData.children.length > 0;
+      }
+      return navMenuData.userPersona === UserPersonaEnum.ALL || navMenuData.userPersona === this.settings.userPersona;
+    });
+  }
+
+  loadCLTMenu() {
+    let clonedMenu = [];
+    clonedMenu = JSON.parse(JSON.stringify(MENU_DATA.CLChildren));
+    this.navMenus.data = clonedMenu.filter(navMenuData => {
+      if(navMenuData.children && navMenuData.children.length) {
+        navMenuData.children = navMenuData.children.filter(navMenuChild => {
+          return ((navMenuChild.userPersona === UserPersonaEnum.ALL || navMenuChild.userPersona === this.settings.userPersona) && navMenuChild.link !== '/cl/messages')
+          || (navMenuChild.link === '/cl/messages' && this.information.api_version && this.commonService.isVersionCompatible(this.information.api_version, '0.2.2'));
+        });
+      }
+      return navMenuData.userPersona === UserPersonaEnum.ALL || navMenuData.userPersona === this.settings.userPersona;
+    });
+  }
+
+  loadECLMenu() {
+    this.navMenus.data = JSON.parse(JSON.stringify(MENU_DATA.ECLChildren));
+  }
 
   onShowData(node: MenuChildNode) {
     this.store.dispatch(new RTLActions.ShowPubkey());

@@ -5,11 +5,12 @@ var crypto = require('crypto');
 var hash = crypto.createHash('sha256');
 var common = require('./common');
 var path = require('path');
-var logger = require('./controllers/logger');
+var logger = require('./controllers/shared/logger');
 var connect = {};
 var errMsg = '';
 var request = require('request');
 var ini = require('ini');
+var parseHocon = require('hocon-parser');
 common.path_separator = (platform === 'win32') ? '\\' : '/';
 
 connect.setDefaultConfig = () => {
@@ -42,7 +43,6 @@ connect.setDefaultConfig = () => {
   return {
     multiPass: "password",
     port: "3000",
-    host: "localhost",
     defaultNodeIndex: 1,
     SSO: {
       rtlSSO: 0,
@@ -64,8 +64,7 @@ connect.setDefaultConfig = () => {
           themeColor: "PURPLE",
           channelBackupPath: channelBackupPath,
           enableLogging: false,
-          lnServerUrl: "https://localhost:8080/v1",
-          swapServerUrl: "http://localhost:8081/v1",
+          lnServerUrl: "https://localhost:8080",
           fiatConversion: false
         }
       }
@@ -115,35 +114,25 @@ connect.validateNodeConfig = (config) => {
   if (config.nodes && config.nodes.length > 0) {
     config.nodes.forEach((node, idx) => {
       common.nodes[idx] = {};
-      if (process.env.MACAROON_PATH && process.env.MACAROON_PATH.trim() !== '') {
-        common.nodes[idx].macaroon_path = process.env.MACAROON_PATH;
-      } else if(node.Authentication && node.Authentication.macaroonPath && node.Authentication.macaroonPath.trim() !== '') {
-        common.nodes[idx].macaroon_path = node.Authentication.macaroonPath;
-      } else {
-        errMsg = 'Please set macaroon path for node index ' + node.index + ' in RTL-Config.json!';
-      }
-
-      if(process.env.LN_SERVER_URL && process.env.LN_SERVER_URL.trim() !== '') {
-        common.nodes[idx].ln_server_url = process.env.LN_SERVER_URL;
-      } else if(process.env.LND_SERVER_URL && process.env.LND_SERVER_URL.trim() !== '') {
-        common.nodes[idx].ln_server_url = process.env.LND_SERVER_URL;
-      } else if(node.Settings.lnServerUrl && node.Settings.lnServerUrl.trim() !== '') {
-        common.nodes[idx].ln_server_url = node.Settings.lnServerUrl;
-      } else if(node.Settings.lndServerUrl && node.Settings.lndServerUrl.trim() !== '') {
-        common.nodes[idx].ln_server_url = node.Settings.lndServerUrl;
-      } else {
-        errMsg = errMsg + '\nPlease set LN Server URL for node index ' + node.index + ' in RTL-Config.json!';
-      }
-
       common.nodes[idx].index = node.index;
       common.nodes[idx].ln_node = node.lnNode;
       common.nodes[idx].ln_implementation = (process.env.LN_IMPLEMENTATION) ? process.env.LN_IMPLEMENTATION : node.lnImplementation ? node.lnImplementation : 'LND';
-      common.nodes[idx].user_persona = node.Settings.userPersona ? node.Settings.userPersona : 'MERCHANT';
-      common.nodes[idx].theme_mode = node.Settings.themeMode ? node.Settings.themeMode : 'DAY';
-      common.nodes[idx].theme_color = node.Settings.themeColor ? node.Settings.themeColor : 'PURPLE';
-      common.nodes[idx].fiat_conversion = node.Settings.fiatConversion ? !!node.Settings.fiatConversion : false;
-      if(common.nodes[idx].fiat_conversion) {
-        common.nodes[idx].currency_unit = node.Settings.currencyUnit ? node.Settings.currencyUnit : 'USD';
+      if (common.nodes[idx].ln_implementation !== 'ECL' && process.env.MACAROON_PATH && process.env.MACAROON_PATH.trim() !== '') {
+        common.nodes[idx].macaroon_path = process.env.MACAROON_PATH;
+      } else if(common.nodes[idx].ln_implementation !== 'ECL' && node.Authentication && node.Authentication.macaroonPath && node.Authentication.macaroonPath.trim() !== '') {
+        common.nodes[idx].macaroon_path = node.Authentication.macaroonPath;
+      } else if (common.nodes[idx].ln_implementation !== 'ECL') {
+        errMsg = 'Please set macaroon path for node index ' + node.index + ' in RTL-Config.json!';
+      }
+
+      if (common.nodes[idx].ln_implementation === 'ECL') {
+        if (process.env.LN_API_PASSWORD) {
+          common.nodes[idx].ln_api_password = process.env.LN_API_PASSWORD;
+        } else if (node.Authentication && node.Authentication.lnApiPassword) {
+          common.nodes[idx].ln_api_password = node.Authentication.lnApiPassword;
+        } else {
+          common.nodes[idx].ln_api_password = '';
+        }
       }
       if (process.env.CONFIG_PATH) {
         common.nodes[idx].config_path = process.env.CONFIG_PATH;
@@ -156,7 +145,66 @@ connect.validateNodeConfig = (config) => {
       } else {
         common.nodes[idx].config_path = '';
       }
-      common.nodes[idx].swap_server_url = process.env.SWAP_SERVER_URL ? process.env.SWAP_SERVER_URL : (node.Settings.swapServerUrl) ? node.Settings.swapServerUrl.trim() : '';
+      if (common.nodes[idx].ln_implementation === 'ECL' && common.nodes[idx].ln_api_password === '' && common.nodes[idx].config_path !== '') {
+        try {
+          let exists = fs.existsSync(common.nodes[idx].config_path);
+          if (exists) {
+            try {
+              let configFile = fs.readFileSync(common.nodes[idx].config_path, 'utf-8');
+              let iniParsed = ini.parse(configFile);
+              common.nodes[idx].ln_api_password = iniParsed['eclair.api.password'] ? iniParsed['eclair.api.password'] : parseHocon(configFile).eclair.api.password;
+            } catch (err) {
+              errMsg = errMsg + '\nSomething went wrong while reading config file: \n' + err;
+            }
+          } else {
+            errMsg = errMsg + '\nInvalid config path: ' + common.nodes[idx].config_path;
+          }   
+        } catch (err) {
+          errMsg = errMsg + '\nUnable to read config file: \n' + err;
+        }
+      }
+      if (common.nodes[idx].ln_implementation === 'ECL' && common.nodes[idx].ln_api_password === '') {
+        errMsg = errMsg + '\nPlease set config path Or api password for node index ' + node.index + ' in RTL-Config.json! It is mandatory for Eclair authentication!';
+      }
+
+      if(process.env.LN_SERVER_URL && process.env.LN_SERVER_URL.trim() !== '') {
+        common.nodes[idx].ln_server_url = process.env.LN_SERVER_URL.endsWith('/v1') ? process.env.LN_SERVER_URL.slice(0, -3) : process.env.LN_SERVER_URL;
+      } else if(process.env.LND_SERVER_URL && process.env.LND_SERVER_URL.trim() !== '') {
+        common.nodes[idx].ln_server_url = process.env.LND_SERVER_URL.endsWith('/v1') ? process.env.LND_SERVER_URL.slice(0, -3) : process.env.LND_SERVER_URL;
+      } else if(node.Settings.lnServerUrl && node.Settings.lnServerUrl.trim() !== '') {
+        common.nodes[idx].ln_server_url = node.Settings.lnServerUrl.endsWith('/v1') ? node.Settings.lnServerUrl.slice(0, -3) : node.Settings.lnServerUrl;
+     } else if(node.Settings.lndServerUrl && node.Settings.lndServerUrl.trim() !== '') {
+        common.nodes[idx].ln_server_url = node.Settings.lndServerUrl.endsWith('/v1') ? node.Settings.lndServerUrl.slice(0, -3) : node.Settings.lndServerUrl;
+      } else {
+        errMsg = errMsg + '\nPlease set LN Server URL for node index ' + node.index + ' in RTL-Config.json!';
+      }
+      common.nodes[idx].user_persona = node.Settings.userPersona ? node.Settings.userPersona : 'MERCHANT';
+      common.nodes[idx].theme_mode = node.Settings.themeMode ? node.Settings.themeMode : 'DAY';
+      common.nodes[idx].theme_color = node.Settings.themeColor ? node.Settings.themeColor : 'PURPLE';
+      common.nodes[idx].fiat_conversion = node.Settings.fiatConversion ? !!node.Settings.fiatConversion : false;
+      if(common.nodes[idx].fiat_conversion) {
+        common.nodes[idx].currency_unit = node.Settings.currencyUnit ? node.Settings.currencyUnit : 'USD';
+      }
+      if(process.env.SWAP_SERVER_URL && process.env.SWAP_SERVER_URL.trim() !== '') {
+        common.nodes[idx].swap_server_url = process.env.SWAP_SERVER_URL.endsWith('/v1') ? process.env.SWAP_SERVER_URL.slice(0, -3) : process.env.SWAP_SERVER_URL;
+        common.nodes[idx].swap_macaroon_path = process.env.SWAP_MACAROON_PATH;
+      } else if(node.Settings.swapServerUrl && node.Settings.swapServerUrl.trim() !== '') {
+        common.nodes[idx].swap_server_url = node.Settings.swapServerUrl.endsWith('/v1') ? node.Settings.swapServerUrl.slice(0, -3) : node.Settings.swapServerUrl;
+        common.nodes[idx].swap_macaroon_path = node.Authentication.swapMacaroonPath ? node.Authentication.swapMacaroonPath : '';
+      } else {
+        common.nodes[idx].swap_server_url = '';
+        common.nodes[idx].swap_macaroon_path = '';
+      }
+      if(process.env.BOLTZ_SERVER_URL && process.env.BOLTZ_SERVER_URL.trim() !== '') {
+        common.nodes[idx].boltz_server_url = process.env.BOLTZ_SERVER_URL.endsWith('/v1') ? process.env.BOLTZ_SERVER_URL.slice(0, -3) : process.env.BOLTZ_SERVER_URL;
+        common.nodes[idx].boltz_macaroon_path = process.env.BOLTZ_MACAROON_PATH;
+      } else if(node.Settings.boltzServerUrl && node.Settings.boltzServerUrl.trim() !== '') {
+        common.nodes[idx].boltz_server_url = node.Settings.boltzServerUrl.endsWith('/v1') ? node.Settings.boltzServerUrl.slice(0, -3) : node.Settings.boltzServerUrl;
+        common.nodes[idx].boltz_macaroon_path = node.Authentication.boltzMacaroonPath ? node.Authentication.boltzMacaroonPath : '';
+      } else {
+        common.nodes[idx].boltz_server_url = '';
+        common.nodes[idx].boltz_macaroon_path = '';
+      }
       common.nodes[idx].bitcoind_config_path = process.env.BITCOIND_CONFIG_PATH ? process.env.BITCOIND_CONFIG_PATH : (node.Settings.bitcoindConfigPath) ? node.Settings.bitcoindConfigPath : '';
       common.nodes[idx].enable_logging = (node.Settings.enableLogging) ? !!node.Settings.enableLogging : false;
       common.nodes[idx].channel_backup_path = process.env.CHANNEL_BACKUP_PATH ? process.env.CHANNEL_BACKUP_PATH : (node.Settings.channelBackupPath) ? node.Settings.channelBackupPath : common.rtl_conf_file_path + common.path_separator + 'backup' + common.path_separator + 'node-' + node.index;
@@ -205,22 +253,22 @@ connect.setSSOParams = (config) => {
 	} else if (config.SSO && config.SSO.rtlSSO) {
 		common.rtl_sso = config.SSO.rtlSSO;
 	}
+ 
+  if (process.env.RTL_COOKIE_PATH) {
+    common.rtl_cookie_path = process.env.RTL_COOKIE_PATH;
+  } else if (config.SSO && config.SSO.rtlCookiePath) {
+    common.rtl_cookie_path = config.SSO.rtlCookiePath;
+  } else {
+    common.rtl_cookie_path = '';
+  }
 
-	if (+common.rtl_sso) {
-    if (process.env.LOGOUT_REDIRECT_LINK) {
-      common.logout_redirect_link = process.env.LOGOUT_REDIRECT_LINK;
-    } else if (config.SSO && config.SSO.logoutRedirectLink) {
-      common.logout_redirect_link = config.SSO.logoutRedirectLink;
-    }
-    
-    if (process.env.RTL_COOKIE_PATH) {
-      common.rtl_cookie_path = process.env.RTL_COOKIE_PATH;
-    } else if (config.SSO && config.SSO.rtlCookiePath) {
-      common.rtl_cookie_path = config.SSO.rtlCookiePath;
-    } else {
-      common.rtl_cookie_path = common.rtl_conf_file_path + '/cookies/auth.cookie';
-    }
+  if (process.env.LOGOUT_REDIRECT_LINK) {
+    common.logout_redirect_link = process.env.LOGOUT_REDIRECT_LINK;
+  } else if (config.SSO && config.SSO.logoutRedirectLink) {
+    common.logout_redirect_link = config.SSO.logoutRedirectLink;
+  }
 
+  if (+common.rtl_sso) {
     if (!common.rtl_cookie_path || common.rtl_cookie_path.trim() === '') {
       errMsg = 'Please set rtlCookiePath value for single sign on option!';
     } else {
@@ -348,7 +396,6 @@ connect.modifyJsonMultiNodeConfig = (confFileFullPath) => {
   if (!config.SSO) { config.SSO = {}; }
   var newConfig = {
     port: config.port ? config.port : 3000,
-    host: config.host ? config.host : 'localhost',
     defaultNodeIndex: config.defaultNodeIndex ? config.defaultNodeIndex : 1,
     SSO: {
       rtlSSO: config.SSO.rtlSSO ? config.SSO.rtlSSO : 0,
@@ -402,9 +449,9 @@ connect.modifyJsonMultiNodeConfig = (confFileFullPath) => {
         newNode.Settings.channelBackupPath = node.Settings.channelBackupPath;
       }
       if (node.Settings.lnServerUrl) {
-        newNode.Settings.lnServerUrl = node.Settings.lnServerUrl;
+        newNode.Settings.lnServerUrl = node.Settings.lnServerUrl.endsWith('/v1') ? node.Settings.lnServerUrl.slice(0, -3) : node.Settings.lnServerUrl;
       } else if (node.Settings.lndServerUrl) {
-        newNode.Settings.lnServerUrl = node.Settings.lndServerUrl;
+        newNode.Settings.lnServerUrl = node.Settings.lndServerUrl.endsWith('/v1') ? node.Settings.lndServerUrl.slice(0, -3) : node.Settings.lndServerUrl;
       }
       newConfig.nodes.push(newNode);
     });
@@ -421,7 +468,6 @@ connect.modifyIniSingleNodeConfig = (confFileFullPath) => {
   if (!config.Settings) { config.Settings = {}; }
   var newConfig = {
     port: config.Settings.port ? config.Settings.port : 3000,
-    host: 'localhost',
     defaultNodeIndex: 1,
     SSO: {
       rtlSSO: config.SSO.rtlSSO ? config.SSO.rtlSSO : 0,
@@ -468,11 +514,11 @@ connect.modifyIniSingleNodeConfig = (confFileFullPath) => {
     newConfig.nodes[0].Settings.channelBackupPath = config.Settings.channelBackupPath;
   }
   if (config.Settings.lnServerUrl) {
-    newConfig.nodes[0].Settings.lnServerUrl = config.Settings.lnServerUrl;
+    newConfig.nodes[0].Settings.lnServerUrl = config.Settings.lnServerUrl.endsWith('/v1') ? config.Settings.lnServerUrl.slice(0, -3) : config.Settings.lnServerUrl;
   } else if (config.Settings.lndServerUrl) {
-    newConfig.nodes[0].Settings.lnServerUrl = config.Settings.lndServerUrl;
+    newConfig.nodes[0].Settings.lnServerUrl = config.Settings.lndServerUrl.endsWith('/v1') ? config.Settings.lndServerUrl.slice(0, -3) : config.Settings.lndServerUrl;
   } else if (config.Authentication.lndServerUrl) {
-    newConfig.nodes[0].Settings.lnServerUrl = config.Authentication.lndServerUrl;
+    newConfig.nodes[0].Settings.lnServerUrl = config.Authentication.lndServerUrl.endsWith('/v1') ? config.Authentication.lndServerUrl.slice(0, -3) : config.Authentication.lndServerUrl;
   }
   newConfig.multiPassHashed = config.Authentication.rtlPassHashed ? config.Authentication.rtlPassHashed : config.Authentication.rtlPass ? hash.update(config.Authentication.rtlPass).digest('hex') : '';
   fs.writeFileSync(confFileFullPath, JSON.stringify(newConfig, null, 2), 'utf-8');

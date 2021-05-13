@@ -6,11 +6,13 @@ import { SharedModule } from '../shared/shared.module';
 
 import { CLRootComponent } from './cl-root.component';
 import { CLHomeComponent } from './home/home.component';
-import { CLPeersChannelsComponent } from './peers-channels/peers-channels.component';
+import { CLConnectionsComponent } from './peers-channels/connections.component';
 import { CLChannelsTablesComponent } from './peers-channels/channels/channels-tables/channels-tables.component';
 import { CLPeersComponent } from './peers-channels/peers/peers.component';
 import { CLLightningInvoicesComponent } from './transactions/invoices/lightning-invoices.component';
 import { CLOnChainReceiveComponent } from './on-chain/on-chain-receive/on-chain-receive.component';
+import { CLUTXOTablesComponent } from './on-chain/utxo-tables/utxo-tables.component';
+import { CLOnChainUtxosComponent } from './on-chain/utxo-tables/utxos/utxos.component';
 import { CLOnChainComponent } from './on-chain/on-chain.component';
 import { CLLightningPaymentsComponent } from './transactions/payments/lightning-payments.component';
 import { CLTransactionsComponent } from './transactions/transactions.component';
@@ -34,6 +36,17 @@ import { CLFeeRatesComponent } from './network-info/fee-rates/fee-rates.componen
 import { CLSignVerifyMessageComponent } from './sign-verify-message/sign-verify-message.component';
 import { CLSignComponent } from './sign-verify-message/sign/sign.component';
 import { CLVerifyComponent } from './sign-verify-message/verify/verify.component';
+import { CLReportsComponent } from './reports/reports.component';
+import { CLFeeReportComponent } from './reports/fee/fee-report.component';
+import { CLTransactionsReportComponent } from './reports/transactions/transactions-report.component';
+import { CLOnChainSendComponent } from './on-chain/on-chain-send/on-chain-send.component';
+import { CLOpenChannelComponent } from './peers-channels/channels/open-channel-modal/open-channel.component';
+import { CLChannelInformationComponent } from './peers-channels/channels/channel-information-modal/channel-information.component';
+import { CLInvoiceInformationComponent } from './transactions/invoice-information-modal/invoice-information.component';
+import { CLConnectPeerComponent } from './peers-channels/connect-peer/connect-peer.component';
+import { CLLightningSendPaymentsComponent } from './transactions/send-payment-modal/send-payment.component';
+import { CLCreateInvoiceComponent } from './transactions/create-invoice-modal/create-invoice.component';
+import { CLOnChainSendModalComponent } from './on-chain/on-chain-send-modal/on-chain-send-modal.component';
 
 import { CLUnlockedGuard } from '../shared/services/auth.guard';
 
@@ -47,7 +60,7 @@ import { CLUnlockedGuard } from '../shared/services/auth.guard';
     CLRootComponent,
     CLHomeComponent,
     CLPeersComponent,
-    CLPeersChannelsComponent,
+    CLConnectionsComponent,
     CLLightningInvoicesComponent,
     CLLightningPaymentsComponent,
     CLTransactionsComponent,
@@ -59,6 +72,8 @@ import { CLUnlockedGuard } from '../shared/services/auth.guard';
     CLNodeLookupComponent,
     CLQueryRoutesComponent,
     CLOnChainReceiveComponent,
+    CLUTXOTablesComponent,
+    CLOnChainUtxosComponent,
     CLOnChainComponent,
     CLChannelsTablesComponent,
     CLChannelOpenTableComponent,
@@ -73,7 +88,18 @@ import { CLUnlockedGuard } from '../shared/services/auth.guard';
     CLFeeRatesComponent,
     CLSignVerifyMessageComponent,
     CLSignComponent,
-    CLVerifyComponent
+    CLVerifyComponent,
+    CLReportsComponent,
+    CLFeeReportComponent,
+    CLTransactionsReportComponent,
+    CLOnChainSendComponent,
+    CLInvoiceInformationComponent,
+    CLOpenChannelComponent,
+    CLConnectPeerComponent,
+    CLLightningSendPaymentsComponent,
+    CLCreateInvoiceComponent,
+    CLOnChainSendModalComponent,
+    CLChannelInformationComponent
   ],
   providers: [
     CLUnlockedGuard

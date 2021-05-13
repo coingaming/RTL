@@ -1,6 +1,7 @@
 import { Component, OnInit, Inject } from '@angular/core';
-import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material';
+import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { Store } from '@ngrx/store';
+import { faInfoCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 
 import { LoggerService } from '../../../services/logger.service';
 import { InputData, ConfirmationData } from '../../../models/alertData';
@@ -15,6 +16,10 @@ import * as fromRTLReducer from '../../../../store/rtl.reducers';
   styleUrls: ['./confirmation-message.component.scss']
 })
 export class ConfirmationMessageComponent implements OnInit {
+  public faInfoCircle = faInfoCircle;
+  public faExclamationTriangle = faExclamationTriangle;
+  public informationMessage = '';
+  public warningMessage = '';
   public noBtnText = 'No';
   public yesBtnText = 'Yes';
   public messageObjs = [];
@@ -27,6 +32,8 @@ export class ConfirmationMessageComponent implements OnInit {
    private store: Store<fromRTLReducer.RTLState>) { }
 
   ngOnInit() {
+    this.informationMessage = this.data.informationMessage;
+    this.warningMessage = this.data.warningMessage;
     this.flgShowInput = this.data.flgShowInput;
     this.getInputs = this.data.getInputs;
     this.noBtnText = (this.data.noBtnText) ? this.data.noBtnText : 'No';
@@ -39,7 +46,7 @@ export class ConfirmationMessageComponent implements OnInit {
     }
   }
 
-  onClose(dialogRes: any) {
+  onClose(dialogRes: any):boolean|void {
     if (dialogRes && this.getInputs && this.getInputs.some(input => !input.inputValue)) { return true; }
     this.store.dispatch(new RTLActions.CloseConfirmation(dialogRes));
   }

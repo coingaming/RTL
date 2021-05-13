@@ -1,11 +1,19 @@
 <div fxLayout="row">
-  <div fxFlex="100" class="padding-gap-large">
+  <div fxFlex="100">
     <mat-card-header fxLayout="row" fxLayoutAlign="space-between center" class="modal-info-header">
-      <div fxFlex="95" fxLayoutAlign="start start" class="padding-gap-x-large"><span class="page-title">Channel Rebalance</span></div>
+      <div fxFlex="95" fxLayoutAlign="start start"><span class="page-title">Channel Rebalance</span></div>
       <button tabindex="15" fxFlex="5" fxLayoutAlign="center" class="btn-close-x p-0" (click)="onClose()" mat-button>X</button>
     </mat-card-header>
-    <mat-card-content class="mt-5px">
+    <mat-card-content class="padding-gap-x-large">
       <div fxLayout="column">
+        <div fxLayout="column" fxLayout.gt-sm="row wrap" fxLayoutAlign="space-between stretch">
+          <div fxFlex="100" class="alert alert-info">
+            <fa-icon [icon]="faInfoCircle" class="mr-1 alert-icon"></fa-icon>
+            <span>Circular Rebalance is a payment you make to *yourselves* to affect a relative change in the balances of two channels.
+              This is accomplished by sending payment out from the selected channel and receiving it back on the channel with the selected peer.
+              Please note, you will be paying routing fee to balance the channels in this manner.</span>
+          </div>
+        </div>
         <div class="padding-gap-large" fxLayout="column" fxLayout.gt-sm="row wrap" fxLayoutAlign="space-between stretch">
           <p fxFlex="40"><strong>Channel Peer:&nbsp;</strong>{{selChannel.remote_alias | titlecase}}</p>
           <p fxFlex="30"><strong>Channel ID:&nbsp;</strong>{{selChannel.chan_id}}</p>
@@ -17,7 +25,7 @@
               <ng-template matStepLabel>{{inputFormLabel}}</ng-template>
               <div fxLayout="column" fxLayout.gt-sm="row wrap" fxFlex="100" fxLayoutAlign="space-between stretch">              
                 <mat-form-field fxFlex="48">
-                  <input autoFocus matInput (change)="filterActiveChannels()" placeholder="Amount" type="number" step="100" tabindex="1" formControlName="rebalanceAmount" required>
+                  <input autoFocus matInput (change)="filterActiveChannels()" placeholder="Amount" type="number" [step]="100" tabindex="1" formControlName="rebalanceAmount" required>
                   <mat-hint>(Local Bal: {{selChannel?.local_balance}}, Remaining: {{selChannel?.local_balance - ((inputFormGroup.controls.rebalanceAmount.value) ? inputFormGroup.controls.rebalanceAmount.value : 0)}})</mat-hint>
                   <span matSuffix>Sats</span>
                   <mat-error *ngIf="inputFormGroup.controls.rebalanceAmount.errors?.required">Amount is required.</mat-error>
@@ -30,10 +38,11 @@
                       {{activeChannel.remote_alias || activeChannel.chan_id}}
                     </mat-option>
                   </mat-select>
+                  <mat-error *ngIf="inputFormGroup.controls.selRebalancePeer.errors?.required">Peer is required.</mat-error>
                 </mat-form-field>
               </div>
               <div class="mt-2" fxLayout="row" fxLayoutAlign="start center" fxFlex="100">
-                <button mat-stroked-button color="primary" tabindex="3" type="button" (click)="onEstimateFee()">Estimate Fee</button>
+                <button mat-stroked-button color="primary" tabindex="3" type="submit" (click)="onEstimateFee()">Estimate Fee</button>
               </div>
             </form>
           </mat-step>
@@ -61,14 +70,14 @@
                     </mat-select>
                   </mat-form-field>
                   <mat-form-field fxFlex="48">
-                    <input matInput formControlName="feeLimit" placeholder="{{feeFormGroup.controls.selFeeLimitType.value ? feeFormGroup.controls.selFeeLimitType.value.placeholder : feeLimitTypes[0].placeholder}}" type="number" step="1" tabindex="7" required>
+                    <input matInput formControlName="feeLimit" placeholder="{{feeFormGroup.controls.selFeeLimitType.value ? feeFormGroup.controls.selFeeLimitType.value.placeholder : feeLimitTypes[0].placeholder}}" type="number" [step]="1" tabindex="7" required>
                     <mat-error *ngIf="feeFormGroup.controls.feeLimit.errors?.required">{{feeFormGroup.controls.selFeeLimitType.value ? feeFormGroup.controls.selFeeLimitType.value.placeholder : feeLimitTypes[0].placeholder}} is required.</mat-error>
                     <mat-error *ngIf="feeFormGroup.controls.feeLimit.errors?.min">{{feeFormGroup.controls.selFeeLimitType.value ? feeFormGroup.controls.selFeeLimitType.value.placeholder : feeLimitTypes[0].placeholder}} must be a positive number.</mat-error>
                   </mat-form-field>
                 </div>                
               </div>
               <div class="mt-2" fxLayout="row" fxLayoutAlign="start center" fxFlex="100">
-                <button mat-stroked-button color="primary" tabindex="8" type="button" (click)="onRebalance()">Rebalance</button>
+                <button mat-stroked-button color="primary" tabindex="8" type="submit" (click)="onRebalance()">Rebalance</button>
               </div>
             </form>
           </mat-step>
@@ -97,7 +106,7 @@
               </div>
               <h4 *ngIf="flgInvoiceGenerated && flgPaymentSent" fxLayoutAlign="start" class="font-bold-500 mt-1">{{paymentStatus && paymentStatus.payment_hash ? 'Rebalance Successful.' : 'Rebalance Failed.'}}</h4>
               <div class="mt-1" fxLayout="row" fxLayoutAlign="start center" fxFlex="100">
-                <button *ngIf="paymentStatus && paymentStatus.error" mat-flat-button color="primary" tabindex="11" type="button" (click)="flgInvoiceGenerated=false;flgPaymentSent=false;stepper.reset()">Start Again</button>
+                <button *ngIf="paymentStatus && paymentStatus.error" mat-flat-button color="primary" tabindex="11" type="button" (click)="onRestart()">Start Again</button>
               </div>
             </form>
           </mat-step>

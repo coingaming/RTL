@@ -1,13 +1,12 @@
 var request = require('request-promise');
 var common = require('../../common');
-var logger = require('../logger');
+var logger = require('../shared/logger');
 var options = {};
 
 getAliasForPeers = (peer) => {
   return new Promise(function(resolve, reject) {
-    options.url = common.getSelLNServerUrl() + '/graph/node/' + peer.pub_key;
-    request(options)
-    .then(function(aliasBody) {
+    options.url = common.getSelLNServerUrl() + '/v1/graph/node/' + peer.pub_key;
+    request(options).then(function(aliasBody) {
       logger.info({fileName: 'Peers', msg: 'Alias: ' + JSON.stringify(aliasBody.node.alias)});
       peer.alias = aliasBody.node.alias;
       resolve(aliasBody.node.alias);
@@ -21,7 +20,7 @@ getAliasForPeers = (peer) => {
 
 exports.getPeers = (req, res, next) => {
   options = common.getOptions();
-  options.url = common.getSelLNServerUrl() + '/peers';
+  options.url = common.getSelLNServerUrl() + '/v1/peers';
   request(options).then(function (body) {
     logger.info({fileName: 'Peers', msg: 'Peers Received: ' + JSON.stringify(body)});
     let peers = !body.peers ? [] : body.peers;
@@ -56,7 +55,7 @@ exports.getPeers = (req, res, next) => {
 
 exports.postPeer = (req, res, next) => {
   options = common.getOptions();
-  options.url = common.getSelLNServerUrl() + '/peers';
+  options.url = common.getSelLNServerUrl() + '/v1/peers';
   options.form = JSON.stringify({ 
     addr: { host: req.body.host, pubkey: req.body.pubkey },
     perm: req.body.perm
@@ -70,7 +69,7 @@ exports.postPeer = (req, res, next) => {
         error: (!body) ? 'Error From Server!' : body.error
       });
     } else {
-      options.url = common.getSelLNServerUrl() + '/peers';
+      options.url = common.getSelLNServerUrl() + '/v1/peers';
       request(options).then(function (body) {
         let peers = (!body.peers) ? [] : body.peers;
         Promise.all(
@@ -108,7 +107,7 @@ exports.postPeer = (req, res, next) => {
 
 exports.deletePeer = (req, res, next) => {
   options = common.getOptions();
-  options.url = common.getSelLNServerUrl() + '/peers/' + req.params.peerPubKey;
+  options.url = common.getSelLNServerUrl() + '/v1/peers/' + req.params.peerPubKey;
   request.delete(options).then((body) => {
     logger.info({fileName: 'Peers', msg: 'Detach Peer Response: ' + JSON.stringify(body)});
     if(!body || body.error) {

@@ -1,4 +1,4 @@
-import { MatPaginatorIntl } from '@angular/material';
+import { MatPaginatorIntl } from '@angular/material/paginator';
 
 export function getPaginatorLabel(field: string) {
   const appPaginator = new MatPaginatorIntl();
@@ -53,7 +53,8 @@ export const NODE_SETTINGS = {
     {id: 'PURPLE', name: 'Diogo'}, 
     {id: 'TEAL', name: 'My2Sats'},
     {id: 'INDIGO', name: 'RTL'},
-    {id: 'PINK', name: 'BK'}
+    {id: 'PINK', name: 'BK'},
+    {id: 'YELLOW', name: 'Gold'}
   ],
   modes: [{id: 'DAY', name: 'Day'}, {id: 'NIGHT', name: 'Night'}]
 };
@@ -73,7 +74,7 @@ export enum AlertTypeEnum {
 }
 
 export enum AuthenticateWith {
-  TOKEN = 'TOKEN',
+  JWT = 'JWT',
   PASSWORD = 'PASSWORD'
 }
 
@@ -87,9 +88,7 @@ export enum TimeUnitEnum {
 export enum CurrencyUnitEnum {
   SATS = 'Sats',
   BTC = 'BTC',
-  LITOSHIS = 'LITOSHIS',
-  LTC = 'LTC',
-  OTHER = 'OTHER'
+  OTHER = 'OTHER' // Fiat currency for conversion
 }
 
 export enum DataTypeEnum {
@@ -105,8 +104,9 @@ export enum DataTypeEnum {
 export enum ScreenSizeEnum {
   XS = 'XS', // < 600 => mobile handsets
   SM = 'SM', // 600 - 839 => tab portrait
-  MD = 'MD', // 840 - 1439 => tab landscape & small laptops
-  LG = 'LG'  // >1440 => big laptops
+  MD = 'MD', // 840 - 1239 => tab landscape & small laptops
+  LG = 'LG',  // 1240 - 1800 => small laptops
+  XL = 'XL'  // >1801 => big laptops
 }
 
 export const CHANNEL_CLOSURE_TYPE = {
@@ -118,7 +118,14 @@ export const CHANNEL_CLOSURE_TYPE = {
   ABANDONED: { name: 'Abandoned', tooltip: 'Channel abandoned by the local node' }
 }
 
-export enum SwapStateEnum {
+export const WALLET_ADDRESS_TYPE = {
+  WITNESS_PUBKEY_HASH: { name: 'Witness Pubkey Hash', tooltip: '' },
+  NESTED_PUBKEY_HASH: { name: 'Nested Pubkey Hash', tooltip: '' },
+  UNUSED_WITNESS_PUBKEY_HASH: { name: 'Unused Witness Pubkey Hash', tooltip: '' },
+  UNUSED_NESTED_PUBKEY_HASH: { name: 'Unused Nested Pubkey Hash', tooltip: '' }
+}
+
+export enum LoopStateEnum {
   INITIATED	= 'Initiated',
   PREIMAGE_REVEALED	= 'Preimage Revealed',
   HTLC_PUBLISHED	= 'HTLC Published',
@@ -127,7 +134,52 @@ export enum SwapStateEnum {
   INVOICE_SETTLED	= 'Invoice Settled'
 }
 
-export enum SwapTypeEnum {
+export enum LoopTypeEnum {
   LOOP_OUT = 'LOOP_OUT',
   LOOP_IN = 'LOOP_IN'
+}
+
+export enum SwapTypeEnum {
+  SWAP_OUT = 'SWAP_OUT',
+  SWAP_IN = 'SWAP_IN'
+}
+
+export enum SwapStateEnum {
+	'swap.created' = 'Swap Created',
+	'swap.expired' = 'Swap Expired',
+	'invoice.set' = 'Invoice Set',
+	'invoice.paid' = 'Invoice Paid',
+	'invoice.pending' = 'Invoice Pending',
+	'invoice.settled' = 'Invoice Settled',
+	'invoice.failedToPay' = 'Invoice Failed To Pay',
+	'channel.created' = 'Channel Created',
+	'transaction.failed' = 'Transaction Failed',
+	'transaction.mempool' = 'Transaction Mempool',
+	'transaction.claimed' = 'Transaction Claimed',
+	'transaction.refunded' = 'Transaction Refunded',
+	'transaction.confirmed' = 'Transaction Confirmed',
+	'swap.refunded' = 'Swap Refunded',
+	'swap.abandoned' = 'Swap Abandoned'
+}
+
+export const MONTHS = [
+  {name: 'Jan', days: 31}, 
+  {name: 'Feb', days: 28},
+  {name: 'Mar', days: 31},
+  {name: 'Apr', days: 30},
+  {name: 'May', days: 31},
+  {name: 'Jun', days: 30},
+  {name: 'Jul', days: 31},
+  {name: 'Aug', days: 31},
+  {name: 'Sep', days: 30},
+  {name: 'Oct', days: 31},
+  {name: 'Nov', days: 30},
+  {name: 'Dec', days: 31}
+];
+
+export const SCROLL_RANGES = ['MONTHLY','YEARLY'];
+
+export enum ServicesEnum {
+  LOOP = 'LOOP',
+  BOLTZ = 'BOLTZ'
 }

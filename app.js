@@ -9,9 +9,13 @@ const baseHref = "/rtl/";
 const apiRoot = baseHref + "api/";
 const apiLNDRoot = baseHref + "api/lnd/";
 const apiCLRoot = baseHref + "api/cl/";
+const apiECLRoot = baseHref + "api/ecl/";
 
-const authenticateRoutes = require("./routes/authenticate");
-const RTLConfRoutes = require("./routes/RTLConf");
+const authenticateRoutes = require("./routes/shared/authenticate");
+const RTLConfRoutes = require("./routes/shared/RTLConf");
+const loopRoutes = require('./routes/shared/loop');
+const boltzRoutes = require('./routes/shared/boltz');
+
 const infoRoutes = require("./routes/lnd/getInfo");
 const channelsRoutes = require("./routes/lnd/channels");
 const channelsBackupRoutes = require("./routes/lnd/channelsBackup");
@@ -26,7 +30,6 @@ const payReqRoutes = require("./routes/lnd/payReq");
 const paymentsRoutes = require("./routes/lnd/payments");
 const invoiceRoutes = require("./routes/lnd/invoices");
 const switchRoutes = require("./routes/lnd/switch");
-const loopRoutes = require('./routes/lnd/loop');
 const messageRoutes = require("./routes/lnd/message");
 
 const infoCLRoutes = require("./routes/c-lightning/getInfo");
@@ -40,9 +43,19 @@ const peersCLRoutes = require("./routes/c-lightning/peers");
 const networkCLRoutes = require("./routes/c-lightning/network");
 const messageCLRoutes = require("./routes/c-lightning/message");
 
+const infoECLRoutes = require("./routes/eclair/getInfo");
+const feesECLRoutes = require("./routes/eclair/fees");
+const channelsECLRoutes = require("./routes/eclair/channels");
+const onChainECLRoutes = require("./routes/eclair/onchain");
+const peersECLRoutes = require("./routes/eclair/peers");
+const invoicesECLRoutes = require("./routes/eclair/invoices");
+const paymentsECLRoutes = require("./routes/eclair/payments");
+const networkECLRoutes = require("./routes/eclair/network");
+
+app.set('trust proxy', true);
 app.use(cookieParser(common.secret_key));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json({limit: '25mb'}));
+app.use(bodyParser.urlencoded({extended: false, limit: '25mb'}));
 app.use(baseHref, express.static(path.join(__dirname, "angular")));
 
 // CORS fix, Only required for developement due to separate backend and frontend servers
@@ -62,6 +75,8 @@ app.use((req, res, next) => {
 
 app.use(apiRoot + "authenticate", authenticateRoutes);
 app.use(apiRoot + "conf", RTLConfRoutes);
+app.use(apiRoot + "boltz", boltzRoutes);
+
 app.use(apiLNDRoot + "getinfo", infoRoutes);
 app.use(apiLNDRoot + "channels", channelsRoutes);
 app.use(apiLNDRoot + "channels/backup", channelsBackupRoutes);
@@ -89,6 +104,15 @@ app.use(apiCLRoot + "payments", paymentsCLRoutes);
 app.use(apiCLRoot + "peers", peersCLRoutes);
 app.use(apiCLRoot + "network", networkCLRoutes);
 app.use(apiCLRoot + "message", messageCLRoutes);
+
+app.use(apiECLRoot + "getinfo", infoECLRoutes);
+app.use(apiECLRoot + "fees", feesECLRoutes);
+app.use(apiECLRoot + "channels", channelsECLRoutes);
+app.use(apiECLRoot + "onchain", onChainECLRoutes);
+app.use(apiECLRoot + "peers", peersECLRoutes);
+app.use(apiECLRoot + "invoices", invoicesECLRoutes);
+app.use(apiECLRoot + "payments", paymentsECLRoutes);
+app.use(apiECLRoot + "network", networkECLRoutes);
 
 app.use((req, res, next) => {
   res.sendFile(path.join(__dirname, "angular", "index.html"));

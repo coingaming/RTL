@@ -5,10 +5,12 @@ import { Store } from '@ngrx/store';
 import { faRoute, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 
 import { CommonService } from '../../../shared/services/common.service';
-import { MatTableDataSource, MatSort } from '@angular/material';
-import { RoutesCL } from '../../../shared/models/clModels';
+import { MatSort } from '@angular/material/sort';
+import { MatTableDataSource } from '@angular/material/table';
+import { Routes } from '../../../shared/models/clModels';
 
 import { CLEffects } from '../../store/cl.effects';
+import * as CLActions from '../../store/cl.actions';
 import * as RTLActions from '../../../store/rtl.actions';
 import * as fromRTLReducer from '../../../store/rtl.reducers';
 import { AlertTypeEnum, DataTypeEnum, ScreenSizeEnum } from '../../../shared/services/consts-enums-functions';
@@ -19,13 +21,13 @@ import { AlertTypeEnum, DataTypeEnum, ScreenSizeEnum } from '../../../shared/ser
   styleUrls: ['./query-routes.component.scss']
 })
 export class CLQueryRoutesComponent implements OnInit, OnDestroy {
-  @ViewChild(MatSort, { static: true }) sort: MatSort;
-  @ViewChild('queryRoutesForm', { static: false }) form: any;  
+  @ViewChild(MatSort, { static: false }) sort: MatSort|undefined;
+  @ViewChild('queryRoutesForm', { static: true }) form: any;  
   public destinationPubkey = '';
-  public amount = null;
+  public amount:number = null;
   public qrHops: any;
   public flgSticky = false;
-  public displayedColumns = [];
+  public displayedColumns: any[] = [];
   public flgLoading: Array<Boolean | 'error'> = [false]; // 0: peers
   public faRoute = faRoute;
   public faExclamationTriangle = faExclamationTriangle;
@@ -33,7 +35,7 @@ export class CLQueryRoutesComponent implements OnInit, OnDestroy {
   public screenSizeEnum = ScreenSizeEnum;
   private unSubs: Array<Subject<void>> = [new Subject(), new Subject()];
 
-  constructor(private store: Store<fromRTLReducer.RTLState>, private lndEffects: CLEffects, private commonService: CommonService) {
+  constructor(private store: Store<fromRTLReducer.RTLState>, private clEffects: CLEffects, private commonService: CommonService) {
     this.screenSize = this.commonService.getScreenSize();
     if(this.screenSize === ScreenSizeEnum.XS) {
       this.flgSticky = false;
@@ -51,26 +53,27 @@ export class CLQueryRoutesComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.lndEffects.setQueryRoutesCL
+    this.clEffects.setQueryRoutesCL
     .pipe(takeUntil(this.unSubs[1]))
     .subscribe(queryRoute => {
       this.qrHops = new MatTableDataSource([]);
       this.qrHops.data = [];
       if (queryRoute.routes) {
         this.flgLoading[0] = false;
-        this.qrHops = new MatTableDataSource<RoutesCL>([...queryRoute.routes]);
+        this.qrHops = new MatTableDataSource<Routes>([...queryRoute.routes]);
         this.qrHops.data = queryRoute.routes;
       } else {
         this.flgLoading[0] = 'error';
       }
       this.qrHops.sort = this.sort;
+      this.qrHops.sortingDataAccessor = (data: any, sortHeaderId: string) => (data[sortHeaderId] && isNaN(data[sortHeaderId])) ? data[sortHeaderId].toLocaleLowerCase() : data[sortHeaderId] ? +data[sortHeaderId] : null;
     });
   }
 
-  onQueryRoutes() {
+  onQueryRoutes():boolean|void {
     if(!this.destinationPubkey || !this.amount) { return true; }
     this.flgLoading[0] = true;
-    this.store.dispatch(new RTLActions.GetQueryRoutesCL({destPubkey: this.destinationPubkey, amount: this.amount*1000}));
+    this.store.dispatch(new CLActions.GetQueryRoutes({destPubkey: this.destinationPubkey, amount: this.amount*1000}));
   }
 
   resetData() {
@@ -81,7 +84,7 @@ export class CLQueryRoutesComponent implements OnInit, OnDestroy {
     this.form.resetForm();
   }
 
-  onHopClick(selHop: RoutesCL, event: any) {
+  onHopClick(selHop: Routes, event: any) {
     const reorderedHop = [
       [{key: 'id', value: selHop.id, title: 'ID', width: 100, type: DataTypeEnum.STRING}],
       [{key: 'channel', value: selHop.channel, title: 'Channel', width: 50, type: DataTypeEnum.STRING},

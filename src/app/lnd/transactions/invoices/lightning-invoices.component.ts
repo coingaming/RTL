@@ -1,12 +1,14 @@
-import { Component, OnInit, OnDestroy, ViewChild, Input } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, Input, AfterViewInit } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { faHistory } from '@fortawesome/free-solid-svg-icons';
-import { MatTableDataSource, MatSort, MatPaginatorIntl } from '@angular/material';
+import { MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSort } from '@angular/material/sort';
+import { MatTableDataSource } from '@angular/material/table';
 
-import { TimeUnitEnum, CurrencyUnitEnum, TIME_UNITS, CURRENCY_UNIT_FORMATS, PAGE_SIZE, PAGE_SIZE_OPTIONS, getPaginatorLabel, AlertTypeEnum, DataTypeEnum, ScreenSizeEnum } from '../../../shared/services/consts-enums-functions';
+import { CurrencyUnitEnum, CURRENCY_UNIT_FORMATS, PAGE_SIZE, PAGE_SIZE_OPTIONS, getPaginatorLabel, ScreenSizeEnum } from '../../../shared/services/consts-enums-functions';
 import { SelNodeChild } from '../../../shared/models/RTLconfig';
 import { GetInfo, Invoice } from '../../../shared/models/lndModels';
 import { LoggerService } from '../../../shared/services/logger.service';
@@ -15,6 +17,8 @@ import { CommonService } from '../../../shared/services/common.service';
 import { CreateInvoiceComponent } from '../create-invoice-modal/create-invoice.component';
 import { InvoiceInformationComponent } from '../invoice-information-modal/invoice-information.component';
 import { newlyAddedRowAnimation } from '../../../shared/animation/row-animation';
+
+import * as LNDActions from '../../store/lnd.actions';
 import * as RTLActions from '../../../store/rtl.actions';
 import * as fromRTLReducer from '../../../store/rtl.reducers';
 
@@ -27,20 +31,21 @@ import * as fromRTLReducer from '../../../store/rtl.reducers';
     { provide: MatPaginatorIntl, useValue: getPaginatorLabel('Invoices') },
   ]  
 })
-export class LightningInvoicesComponent implements OnInit, OnDestroy {
-  @Input() showDetails = true;
-  @ViewChild(MatSort, { static: true }) sort: MatSort;
+export class LightningInvoicesComponent implements OnInit, AfterViewInit, OnDestroy {
+  @Input() calledFrom = 'transactions'; // transactions/home
+  @ViewChild(MatSort, { static: false }) sort: MatSort|undefined;
   faHistory = faHistory;
   public selNode: SelNodeChild = {};
-  public newlyAddedInvoiceMemo = '';
-  public newlyAddedInvoiceValue = 0;
+  public newlyAddedInvoiceMemo = null;
+  public newlyAddedInvoiceValue = null;
   public flgAnimate = true;
   public memo = '';
   public expiry: number;
   public invoiceValue: number;
   public invoiceValueHint = '';
-  public displayedColumns = [];
+  public displayedColumns: any[] = [];
   public invoicePaymentReq = '';
+  public invoicesData: Invoice[] = [];
   public invoices: any;
   public information: GetInfo = {};
   public flgLoading: Array<Boolean | 'error'> = [true];
@@ -50,9 +55,6 @@ export class LightningInvoicesComponent implements OnInit, OnDestroy {
   public totalInvoices = 100;
   public pageSize = PAGE_SIZE;
   public pageSizeOptions = PAGE_SIZE_OPTIONS;
-  public timeUnitEnum = TimeUnitEnum;
-  public timeUnits = TIME_UNITS;
-  public selTimeUnit = TimeUnitEnum.SECS;
   private firstOffset = -1;
   private lastOffset = -1;
   public screenSize = '';
@@ -63,16 +65,16 @@ export class LightningInvoicesComponent implements OnInit, OnDestroy {
     this.screenSize = this.commonService.getScreenSize();
     if(this.screenSize === ScreenSizeEnum.XS) {
       this.flgSticky = false;
-      this.displayedColumns = ['creation_date', 'actions'];
+      this.displayedColumns = ['creation_date', 'value', 'actions'];
     } else if(this.screenSize === ScreenSizeEnum.SM) {
       this.flgSticky = false;
-      this.displayedColumns = ['creation_date', 'value', 'actions'];
+      this.displayedColumns = ['creation_date', 'settle_date', 'value', 'amt_paid_sat', 'actions'];
     } else if(this.screenSize === ScreenSizeEnum.MD) {
       this.flgSticky = false;
-      this.displayedColumns = ['creation_date', 'memo', 'value', 'actions'];
+      this.displayedColumns = ['creation_date', 'settle_date', 'memo', 'value', 'actions'];
     } else {
       this.flgSticky = true;
-      this.displayedColumns = ['creation_date', 'memo', 'value', 'settle_date', 'actions'];
+      this.displayedColumns = ['creation_date', 'settle_date', 'memo', 'value', 'amt_paid_sat', 'actions'];
     }
   }
 
@@ -80,7 +82,7 @@ export class LightningInvoicesComponent implements OnInit, OnDestroy {
     this.store.select('lnd')
     .pipe(takeUntil(this.unSubs[0]))
     .subscribe((rtlStore) => {
-      rtlStore.effectErrorsLnd.forEach(effectsErr => {
+      rtlStore.effectErrors.forEach(effectsErr => {
         if (effectsErr.action === 'FetchInvoices') {
           this.flgLoading[0] = 'error';
         }
@@ -90,24 +92,31 @@ export class LightningInvoicesComponent implements OnInit, OnDestroy {
       this.totalInvoices = rtlStore.totalInvoices;
       this.firstOffset = +rtlStore.invoices.first_index_offset;
       this.lastOffset = +rtlStore.invoices.last_index_offset;
-      this.logger.info(rtlStore);
-      this.loadInvoicesTable(rtlStore.invoices.invoices ? rtlStore.invoices.invoices : []);
+      this.invoicesData = rtlStore.invoices.invoices ? rtlStore.invoices.invoices : [];
+      if (this.invoicesData.length > 0) {
+        this.loadInvoicesTable(this.invoicesData);
+      }
       if (this.flgLoading[0] !== 'error') {
         this.flgLoading[0] = ( rtlStore.invoices) ? false : true;
       }
+      this.logger.info(rtlStore);
     });
   }
 
+  ngAfterViewInit() {
+    if (this.invoicesData.length > 0) {
+      this.loadInvoicesTable(this.invoicesData);
+    }
+  }
+
+
   onAddInvoice(form: any) {
     let expiryInSecs = (this.expiry ? this.expiry : 3600);
-    if (this.selTimeUnit !== TimeUnitEnum.SECS) {
-      expiryInSecs = this.commonService.convertTime(this.expiry, this.selTimeUnit, TimeUnitEnum.SECS);
-    }
     this.flgAnimate = true;
     this.newlyAddedInvoiceMemo = this.memo;
     this.newlyAddedInvoiceValue = this.invoiceValue;
     this.store.dispatch(new RTLActions.OpenSpinner('Adding Invoice...'));
-    this.store.dispatch(new RTLActions.SaveNewInvoice({
+    this.store.dispatch(new LNDActions.SaveNewInvoice({
       memo: this.memo, invoiceValue: this.invoiceValue, private: this.private, expiry: expiryInSecs, pageSize: this.pageSize, openModal: true
     }));
     this.resetData();
@@ -122,8 +131,10 @@ export class LightningInvoicesComponent implements OnInit, OnDestroy {
   }
 
   loadInvoicesTable(invoices) {
-    this.invoices = new MatTableDataSource<Invoice>([...invoices]);
+    this.invoices = invoices ? new MatTableDataSource<Invoice>([...invoices]) : new MatTableDataSource<Invoice>([]);
     this.invoices.sort = this.sort;
+    this.invoices.sortingDataAccessor = (data: any, sortHeaderId: string) => (data[sortHeaderId] && isNaN(data[sortHeaderId])) ? data[sortHeaderId].toLocaleLowerCase() : data[sortHeaderId] ? +data[sortHeaderId] : null;
+    this.invoices.filterPredicate = (invoice: Invoice, fltr: string) => JSON.stringify(invoice).toLowerCase().includes(fltr);
     setTimeout(() => { this.flgAnimate = false; }, 5000);
     this.logger.info(this.invoices);
   }
@@ -134,11 +145,10 @@ export class LightningInvoicesComponent implements OnInit, OnDestroy {
     this.private = false;
     this.expiry = undefined;
     this.invoiceValueHint = '';
-    this.selTimeUnit = TimeUnitEnum.SECS;
   }
 
-  applyFilter(selFilter: string) {
-    this.invoices.filter = selFilter;
+  applyFilter(selFilter: any) {
+    this.invoices.filter = selFilter.value.trim().toLowerCase();
   }
 
   onPageChange(event: any) {
@@ -152,7 +162,7 @@ export class LightningInvoicesComponent implements OnInit, OnDestroy {
       reversed = true;
       index_offset = 0;
     }
-    this.store.dispatch(new RTLActions.FetchInvoices({num_max_invoices: event.pageSize, index_offset: index_offset, reversed: reversed}));
+    this.store.dispatch(new LNDActions.FetchInvoices({num_max_invoices: event.pageSize, index_offset: index_offset, reversed: reversed}));
   }
 
   onInvoiceValueChange() {
@@ -166,16 +176,9 @@ export class LightningInvoicesComponent implements OnInit, OnDestroy {
     }
   }
 
-  onTimeUnitChange(event: any) {
-    if(this.expiry && this.selTimeUnit !== event.value) {
-      this.expiry = this.commonService.convertTime(this.expiry, this.selTimeUnit, event.value);
-    }
-    this.selTimeUnit = event.value;
-  }
-
   onDownloadCSV() {
     if(this.invoices.data && this.invoices.data.length > 0) {
-      this.commonService.downloadCSV(this.invoices.data, 'Invoices');
+      this.commonService.downloadFile(this.invoices.data, 'Invoices');
     }
   }
 

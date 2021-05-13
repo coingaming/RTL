@@ -1,15 +1,15 @@
 var request = require('request-promise');
 var common = require('../../common');
 var atob = require('atob');
-var logger = require('../logger');
+var logger = require('../shared/logger');
 var options = {};
 
 exports.genSeed = (req, res, next) => {
   options = common.getOptions();
   if ( req.params.passphrase) {
-    options.url = common.getSelLNServerUrl() + '/genseed?aezeed_passphrase=' + Buffer.from(atob(req.params.passphrase)).toString('base64');
+    options.url = common.getSelLNServerUrl() + '/v1/genseed?aezeed_passphrase=' + Buffer.from(atob(req.params.passphrase)).toString('base64');
   } else {
-    options.url = common.getSelLNServerUrl() + '/genseed';
+    options.url = common.getSelLNServerUrl() + '/v1/genseed';
   }
   request(options).then((body) => {
     if(!body || body.error) {
@@ -42,13 +42,13 @@ exports.operateWallet = (req, res, next) => {
   options = common.getOptions();
   options.method = 'POST';
   if (!req.params.operation || req.params.operation === 'unlockwallet') {
-    options.url = common.getSelLNServerUrl() + '/unlockwallet';
+    options.url = common.getSelLNServerUrl() + '/v1/unlockwallet';
     options.form = JSON.stringify({
       wallet_password: Buffer.from(atob(req.body.wallet_password)).toString('base64')
     });
     err_message = 'Unlocking wallet failed! Verify that lnd is running and the wallet is locked!';
   } else {
-    options.url = common.getSelLNServerUrl() + '/initwallet';
+    options.url = common.getSelLNServerUrl() + '/v1/initwallet';
     if ( req.body.aezeed_passphrase && req.body.aezeed_passphrase !== '') {
       options.form = JSON.stringify({
         wallet_password: Buffer.from(atob(req.body.wallet_password)).toString('base64'),
@@ -116,4 +116,151 @@ exports.operateWallet = (req, res, next) => {
 exports.updateSelNodeOptions = (req, res, next) => {
   let response = common.updateSelectedNodeOptions();
   res.status(response.status).json({updateMessage: response.message});
+}
+
+exports.getUTXOs = (req, res, next) => {
+  options = common.getOptions();
+  options.url = common.getSelLNServerUrl() + '/v2/wallet/utxos?max_confs=' + req.query.max_confs;
+  request.post(options).then((body) => {
+    logger.info({fileName: 'Wallet', msg: 'UTXO List Response: ' + JSON.stringify(body)});
+    res.status(200).json(body.utxos ? body.utxos : []);
+  })
+  .catch(errRes => {
+    let err = JSON.parse(JSON.stringify(errRes));
+    if (err.options && err.options.headers && err.options.headers['Grpc-Metadata-macaroon']) {
+      delete err.options.headers['Grpc-Metadata-macaroon'];
+    }
+    if (err.response && err.response.request && err.response.request.headers && err.response.request.headers['Grpc-Metadata-macaroon']) {
+      delete err.response.request.headers['Grpc-Metadata-macaroon'];
+    }
+    logger.error({fileName: 'Wallet', lineNum: 143, msg: 'UTXOs Error: ' + JSON.stringify(err)});
+    return res.status(500).json({
+      message: "UTXO list failed!",
+      error: err.error
+    });
+  });
+}
+
+exports.bumpFee = (req, res, next) => {
+  options = common.getOptions();
+  options.url = common.getSelLNServerUrl() + '/v2/wallet/bumpfee';
+  options.form = {};
+  options.form.outpoint = {
+    txid_str: req.body.txid,
+    output_index: req.body.outputIndex
+  };
+  if (req.body.targetConf) {
+    options.form.target_conf = req.body.targetConf;
+  } else if (req.body.satPerByte) {
+    options.form.sat_per_byte = req.body.satPerByte;
+  }
+  options.form = JSON.stringify(options.form);
+  request.post(options).then((body) => {
+    logger.info({fileName: 'Wallet', msg: 'Bump Fee Response: ' + JSON.stringify(body)});
+    res.status(200).json(body);
+  })
+  .catch(errRes => {
+    let err = JSON.parse(JSON.stringify(errRes));
+    if (err.options && err.options.headers && err.options.headers['Grpc-Metadata-macaroon']) {
+      delete err.options.headers['Grpc-Metadata-macaroon'];
+    }
+    if (err.response && err.response.request && err.response.request.headers && err.response.request.headers['Grpc-Metadata-macaroon']) {
+      delete err.response.request.headers['Grpc-Metadata-macaroon'];
+    }
+    logger.error({fileName: 'Wallet', lineNum: 170, msg: 'Bump Fee Error: ' + JSON.stringify(err)});
+    return res.status(500).json({
+      message: "Bump fee failed!",
+      error: err.error
+    });
+  });
+}
+
+exports.labelTransaction = (req, res, next) => {
+  options = common.getOptions();
+  options.url = common.getSelLNServerUrl() + '/v2/wallet/tx/label';
+  options.form = {};
+  options.form.txid = req.body.txid;
+  options.form.label = req.body.label;
+  options.form.overwrite = req.body.overwrite;
+  options.form = JSON.stringify(options.form);
+  logger.info({fileName: 'Wallet', msg: 'Label Transaction Options: ' + JSON.stringify(options.form)});
+  request.post(options).then((body) => {
+    logger.info({fileName: 'Wallet', msg: 'Label Transaction Post Response: ' + JSON.stringify(body)});
+    res.status(200).json(body);
+  })
+  .catch(errRes => {
+    let err = JSON.parse(JSON.stringify(errRes));
+    if (err.options && err.options.headers && err.options.headers['Grpc-Metadata-macaroon']) {
+      delete err.options.headers['Grpc-Metadata-macaroon'];
+    }
+    if (err.response && err.response.request && err.response.request.headers && err.response.request.headers['Grpc-Metadata-macaroon']) {
+      delete err.response.request.headers['Grpc-Metadata-macaroon'];
+    }
+    logger.error({fileName: 'Wallet', lineNum: 253, msg: 'Label Transaction Error: ' + JSON.stringify(err)});
+    return res.status(500).json({
+      message: "Transaction label failed!",
+      error: err.error
+    });
+  });
+}
+
+exports.leaseUTXO = (req, res, next) => {
+  options = common.getOptions();
+  options.url = common.getSelLNServerUrl() + '/v2/wallet/utxos/lease';
+  options.form = {};
+  options.form.id = req.body.txid;
+  options.form.outpoint = {
+    txid_bytes: req.body.txid,
+    output_index: req.body.outputIndex
+  };
+  options.form = JSON.stringify(options.form);
+  logger.info({fileName: 'Wallet', msg: 'UTXO Lease Options: ' + options.form});
+  request.post(options).then((body) => {
+    logger.info({fileName: 'Wallet', msg: 'UTXO Lease Response: ' + JSON.stringify(body)});
+    res.status(200).json(body);
+  })
+  .catch(errRes => {
+    let err = JSON.parse(JSON.stringify(errRes));
+    if (err.options && err.options.headers && err.options.headers['Grpc-Metadata-macaroon']) {
+      delete err.options.headers['Grpc-Metadata-macaroon'];
+    }
+    if (err.response && err.response.request && err.response.request.headers && err.response.request.headers['Grpc-Metadata-macaroon']) {
+      delete err.response.request.headers['Grpc-Metadata-macaroon'];
+    }
+    logger.error({fileName: 'Wallet', lineNum: 197, msg: 'Lease UTXO Error: ' + JSON.stringify(err)});
+    return res.status(500).json({
+      message: "Lease UTXO failed!",
+      error: err.error
+    });
+  });
+}
+
+exports.releaseUTXO = (req, res, next) => {
+  options = common.getOptions();
+  options.url = common.getSelLNServerUrl() + '/v2/wallet/utxos/release';
+  options.form = {};
+  options.form.id = req.body.txid;
+  options.form.outpoint = {
+    txid_bytes: req.body.txid,
+    output_index: req.body.outputIndex
+  };
+  options.form = JSON.stringify(options.form);
+  request.post(options).then((body) => {
+    logger.info({fileName: 'Wallet', msg: 'UTXO Release Response: ' + JSON.stringify(body)});
+    res.status(200).json(body);
+  })
+  .catch(errRes => {
+    let err = JSON.parse(JSON.stringify(errRes));
+    if (err.options && err.options.headers && err.options.headers['Grpc-Metadata-macaroon']) {
+      delete err.options.headers['Grpc-Metadata-macaroon'];
+    }
+    if (err.response && err.response.request && err.response.request.headers && err.response.request.headers['Grpc-Metadata-macaroon']) {
+      delete err.response.request.headers['Grpc-Metadata-macaroon'];
+    }
+    logger.error({fileName: 'Wallet', lineNum: 226, msg: 'Release UTXO Error: ' + JSON.stringify(err)});
+    return res.status(500).json({
+      message: "Release UTXO failed!",
+      error: err.error
+    });
+  });
 }

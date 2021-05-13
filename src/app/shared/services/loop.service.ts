@@ -1,22 +1,45 @@
-import { Injectable } from '@angular/core';
+import { Injectable, OnDestroy } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { throwError, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { BehaviorSubject, Subject, throwError } from 'rxjs';
+import { catchError, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 
 import { environment, API_URL } from '../../../environments/environment';
 import { ErrorMessageComponent } from '../../shared/components/data-modal/error-message/error-message.component';
 import { LoggerService } from '../../shared/services/logger.service';
 import { AlertTypeEnum } from '../../shared/services/consts-enums-functions';
+
 import * as RTLActions from '../../store/rtl.actions';
 import * as fromRTLReducer from '../../store/rtl.reducers';
+import { LoopSwapStatus } from '../models/loopModels';
 
 @Injectable()
-export class LoopService {
+export class LoopService implements OnDestroy {
   private CHILD_API_URL = API_URL + '/lnd';
   private loopUrl = '';
+  private swaps: LoopSwapStatus[] = [];
+  public swapsChanged = new BehaviorSubject<LoopSwapStatus[]>([]);
+  private unSubs: Array<Subject<void>> = [new Subject(), new Subject(), new Subject()];
 
   constructor(private httpClient: HttpClient, private logger: LoggerService, private store: Store<fromRTLReducer.RTLState>) {}
+
+  getSwapsList() {
+    return this.swaps;
+  }
+
+  listSwaps() {
+    this.store.dispatch(new RTLActions.OpenSpinner('Getting List Swaps...'));
+    this.loopUrl = this.CHILD_API_URL + environment.LOOP_API + '/swaps';
+    this.httpClient.get(this.loopUrl)
+    .pipe(takeUntil(this.unSubs[0]))
+    .subscribe((swapResponse: LoopSwapStatus[]) => {
+      this.store.dispatch(new RTLActions.CloseSpinner());      
+      this.swaps = swapResponse;
+      this.swapsChanged.next(this.swaps);
+    }, err => {
+      return this.handleErrorWithAlert('Loop Swaps', err);
+    });
+  }
 
   loopOut(amount: number, chanId: string, targetConf: number, swapRoutingFee: number, minerFee: number, prepayRoutingFee: number, prepayAmt: number, swapFee: number, swapPublicationDeadline: number, destAddress: string) {
     let requestBody = { amount: amount, targetConf: targetConf, swapRoutingFee: swapRoutingFee, minerFee: minerFee, prepayRoutingFee: prepayRoutingFee, prepayAmt: prepayAmt, swapFee: swapFee, swapPublicationDeadline: swapPublicationDeadline, destAddress: destAddress };
@@ -44,7 +67,7 @@ export class LoopService {
     params = params.append('swapPublicationDeadline', (new Date().getTime() + (30 * 60000)).toString());
     this.loopUrl = this.CHILD_API_URL + environment.LOOP_API + '/out/termsAndQuotes';
     return this.httpClient.get(this.loopUrl, { params: params }).pipe(catchError(err => {
-      return this.handleErrorWithAlert('Loop Out Terms and Quotes', err);
+      return this.handleErrorWithAlert(this.loopUrl, err);
     }));
   }
 
@@ -73,7 +96,7 @@ export class LoopService {
     params = params.append('swapPublicationDeadline', (new Date().getTime() + (30 * 60000)).toString());
     this.loopUrl = this.CHILD_API_URL + environment.LOOP_API + '/in/termsAndQuotes';
     return this.httpClient.get(this.loopUrl, { params: params }).pipe(catchError(err => {
-      return this.handleErrorWithAlert('Loop In Terms and Quotes', err);
+      return this.handleErrorWithAlert(this.loopUrl, err);
     }));
   }
 
@@ -102,19 +125,19 @@ export class LoopService {
   }
 
   handleErrorWithAlert(errURL: string, err: any) {
-    if (typeof err.error.error === 'string') {
-      try {
-        err = JSON.parse(err.error.error);
-      } catch(err) {}
-    } else {
-      err = err.error.error.error ? err.error.error.error : err.error.error ? err.error.error : err.error ? err.error : { code : 500, message: 'Unknown Error' };
+    if (err.status === 401) {
+      this.logger.info('Redirecting to Login');
+      this.store.dispatch(new RTLActions.Logout());
     }
+    err.message = (err.error && err.error.error && err.error.error.error && typeof err.error.error.error === 'string') ? err.error.error.error :
+      (err.error && err.error.error && typeof err.error.error === 'string') ? err.error.error :
+      (err.error && typeof err.error === 'string') ? err.error : 'Unknown Error';
     this.logger.error(err);
     this.store.dispatch(new RTLActions.CloseSpinner())
     if (err.status === 401) {
       this.logger.info('Redirecting to Login');
       this.store.dispatch(new RTLActions.Logout());
-    } else if (err.errno === 'ECONNREFUSED') {
+    } else if (err.error.errno === 'ECONNREFUSED' || err.error.error.errno === 'ECONNREFUSED') {
       this.store.dispatch(new RTLActions.OpenAlert({
         data: {
           type: 'ERROR',
@@ -135,4 +158,10 @@ export class LoopService {
     return throwError(err);
   }
 
+  ngOnDestroy() {
+    this.unSubs.forEach(completeSub => {
+      completeSub.next();
+      completeSub.complete();
+    });
+  }
 }

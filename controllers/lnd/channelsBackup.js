@@ -1,7 +1,7 @@
 var request = require('request-promise');
 var fs = require('fs');
 var common = require('../../common');
-var logger = require('../logger');
+var logger = require('../shared/logger');
 var options = {};
 
 function getFilesList(callback) {
@@ -13,7 +13,7 @@ function getFilesList(callback) {
     if( files && files.length > 0) {
       files.forEach(file => {
         if (!file.includes('.restored')) {
-          if (file === 'channel-all.bak') {
+          if (file.toLowerCase() === 'channel-all.bak' || file.toLowerCase() === 'backup-channel-all.bak') {
             all_restore_exists = true;
           } else {
             files_list.push({channel_point: file.substring(8, file.length - 4).replace('-', ':')});
@@ -33,12 +33,12 @@ exports.getBackup = (req, res, next) => {
   if (req.params.channelPoint === 'ALL') {
     channel_backup_file = common.selectedNode.channel_backup_path + common.path_separator + 'channel-all.bak';
     message = 'All Channels Backup Successful.';
-    options.url = common.getSelLNServerUrl() + '/channels/backup';
+    options.url = common.getSelLNServerUrl() + '/v1/channels/backup';
   } else {
     channel_backup_file = common.selectedNode.channel_backup_path + common.path_separator + 'channel-' + req.params.channelPoint.replace(':', '-') + '.bak';
     message = 'Channel Backup Successful.';
     let channelpoint = req.params.channelPoint.replace(':', '/');
-    options.url = common.getSelLNServerUrl() + '/channels/backup/' + channelpoint;
+    options.url = common.getSelLNServerUrl() + '/v1/channels/backup/' + channelpoint;
     let exists = fs.existsSync(channel_backup_file);
     if (exists) {
       fs.writeFile(channel_backup_file, '', () => { });
@@ -96,7 +96,7 @@ exports.getBackup = (req, res, next) => {
 
 exports.postBackupVerify = (req, res, next) => {
   options = common.getOptions();
-  options.url = common.getSelLNServerUrl() + '/channels/backup/verify';
+  options.url = common.getSelLNServerUrl() + '/v1/channels/backup/verify';
   let channel_verify_file = '';
   let message = '';
   let verify_backup = '';
@@ -153,16 +153,25 @@ exports.postBackupVerify = (req, res, next) => {
 
 exports.postRestore = (req, res, next) => {
   options = common.getOptions();
-  options.url = common.getSelLNServerUrl() + '/channels/backup/restore';
+  options.url = common.getSelLNServerUrl() + '/v1/channels/backup/restore';
   let channel_restore_file = '';
   let message = '';
   let restore_backup = '';
   if (req.params.channelPoint === 'ALL') {
     message = 'All Channels Restore Successful.';
-    channel_restore_file = common.selectedNode.channel_backup_path + common.path_separator + 'restore' + common.path_separator + 'channel-all.bak';
-    let exists = fs.existsSync(channel_restore_file);
+    channel_restore_file = common.selectedNode.channel_backup_path + common.path_separator + 'restore' + common.path_separator;
+    let exists = fs.existsSync(channel_restore_file + 'channel-all.bak');
+    let downloaded_exists = fs.existsSync(channel_restore_file + 'backup-channel-all.bak');
     if (exists) {
-      restore_backup = fs.readFileSync(channel_restore_file, 'utf-8');
+      restore_backup = fs.readFileSync(channel_restore_file + 'channel-all.bak', 'utf-8');
+      if (restore_backup !== '') {
+        restore_backup = JSON.parse(restore_backup);
+        options.form = JSON.stringify({multi_chan_backup: restore_backup.multi_chan_backup.multi_chan_backup});
+      } else {
+        res.status(404).json({ message: 'Channels backup to restore does not Exist!' });
+      }
+    } else if (downloaded_exists) {
+      restore_backup = fs.readFileSync(channel_restore_file + 'backup-channel-all.bak', 'utf-8');
       if (restore_backup !== '') {
         restore_backup = JSON.parse(restore_backup);
         options.form = JSON.stringify({multi_chan_backup: restore_backup.multi_chan_backup.multi_chan_backup});

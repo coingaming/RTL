@@ -1,5 +1,3 @@
-import { SwapStateEnum, SwapTypeEnum } from '../services/consts-enums-functions';
-
 export interface ChannelStatus {
   channels?: number;
   capacity?:number;
@@ -38,6 +36,13 @@ export interface ChannelFeeReport {
   fee_rate?: number;
 }
 
+export interface ChannelHTLC {
+  incoming?: boolean;
+  amount?: string;
+  hash_lock?: string;
+  expiration_height?: number;
+}
+
 export interface Channel {
   active?: boolean;
   remote_pubkey?: string;
@@ -55,7 +60,7 @@ export interface Channel {
   total_satoshis_received?: number;
   num_updates?: number;
   private?: boolean;
-  pending_htlcs?: HTLC[];
+  pending_htlcs?: ChannelHTLC[];
   csv_delay?: number;
   initiator?: boolean;
   chan_status_flags?: string;
@@ -105,13 +110,15 @@ export interface PendingOpenChannel {
 export interface WaitingCloseChannel {
   channel?: PendingChannel;
   limbo_balance?: string;
-  commitments?: string;
+  commitments?: any;
 }
 
 export interface PendingChannel {
   remote_alias?: string;
   remote_node_pub?: string;
   channel_point?: string;
+  txid_str?: string;
+  output_index?: number;
   capacity?: string;
   local_balance?: string;
   remote_balance?: string;
@@ -245,20 +252,39 @@ export interface HopHint {
   fee_base_msat?: number;
 }
 
-export interface HTLC {
-  incoming?: boolean;
-  amount?: number;
-  hash_lock?: string;
-  expiration_height?: number;
+export interface PaymentHTLC {
+  status?: string;
+  route?: Route; 
+  attempt_time_ns?: string;
+  resolve_time_ns?: string;
+  failure?: any;
+  preimage?: string;
+  attempt_time_str?: string;
+  resolve_time_str?: string;
+}
+
+export interface InvoiceHTLC {
+  chan_id?: string;
+  htlc_index?: string;
+  amt_msat?: string;
+  accept_height?: number;
+  accept_time?: string;
+  accept_time_str?: string;
+  resolve_time?: string;
+  resolve_time_str?: string;
+  expiry_height?: number;
+  state?: string;
+  custom_records?: any;
+  mpp_total_amt_msat?: string;
 }
 
 export interface Invoice {
   memo?: string;
-  receipt?: string;
   r_preimage?: string;
   r_hash?: string;
   value?: string;
   btc_value?: string;
+  value_msat?: string;
   settled?: boolean;
   creation_date?: string;
   creation_date_str?: string;
@@ -269,7 +295,6 @@ export interface Invoice {
   expiry?: string;
   fallback_addr?: string;
   cltv_expiry?: string;
-  state?: string;
   route_hints?: RouteHint[];
   private?: boolean;
   add_index?: string;
@@ -278,6 +303,10 @@ export interface Invoice {
   amt_paid_sat?: string;
   btc_amt_paid_sat?: string;
   amt_paid_msat?: string;
+  state?: string;
+  htlcs?: InvoiceHTLC[];
+  features?: any;
+  is_keysend?: boolean;  
 }
 
 export interface ListInvoices {
@@ -320,12 +349,20 @@ export interface Payment {
   creation_date?: number;
   creation_date_str?: string;
   payment_hash?: string;
-  path?: string[];
+  payment_request?: string;
+  status?: string;
   fee?: number;
+  fee_sat?: number;
+	fee_msat?: number;
   value_msat?: number;
   value_sat?: number;
   value?: number;
   payment_preimage?: string;
+  creation_time_ns?: string;
+  payment_index?: string;
+  failure_reason?: string;
+  htlcs: PaymentHTLC[];
+  is_expanded?: boolean;
 }
 
 export interface PayRequest {
@@ -372,6 +409,9 @@ export interface Hop {
   amt_to_forward_msat?:	string;
   fee_msat?: string;
   pub_key?:	string;
+  tlv_payload?: boolean;
+  mpp_record?: { payment_addr?: string; total_amt_msat?: number; }
+  custom_records?: any;
 }
 
 export interface Route {
@@ -416,6 +456,17 @@ export interface Transaction {
   block_height?: number;
   tx_hash?: string;
   amount?: string;
+  label?: string;
+}
+
+export interface UTXO {
+  address_type?: string;
+  address?: string;
+  amount_sat?: string;
+  pk_script?: string;
+  outpoint?: {txid_bytes?: string; txid_str?: string; output_index?: number;};
+  confirmations?: string;
+  label?: string;
 }
 
 export interface SwitchReq {
@@ -431,7 +482,9 @@ export interface ForwardingEvent {
   chan_id_out?: string;
   alias_out?: string;
   amt_out?: string;
+  amt_out_msat?: string; 
   amt_in?: string;
+  amt_in_msat?: string;  
   chan_id_in?: string;
   alias_in?: string;
   fee?: string;
@@ -447,6 +500,7 @@ export interface RoutingPeers {
 
 export interface SwitchRes {
   last_offset_index?: number;
+  total_fee_msat?: number;
   forwarding_events?: ForwardingEvent[];
 }
 
@@ -463,20 +517,3 @@ export interface PendingChannelsData {
   num_channels: number;
   limbo_balance: number;
 }
-
-export interface SwapStatus {
-  type?: SwapTypeEnum;
-  cost_server?: string;
-  cost_offchain?: string;
-  htlc_address?: string;
-  state?: SwapStateEnum;
-  amt?: string;
-  cost_onchain?: string;
-  initiation_time?: string;
-  initiation_time_str?: string;
-  id_bytes?: string;
-  last_update_time?: string;
-  last_update_time_str?: string;
-  id?: string;
-}
-

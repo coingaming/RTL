@@ -1,11 +1,13 @@
-import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { Actions } from '@ngrx/effects';
 import { faUsers } from '@fortawesome/free-solid-svg-icons';
 
-import { MatTableDataSource, MatSort, MatPaginator, MatPaginatorIntl } from '@angular/material';
+import { MatPaginator, MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSort } from '@angular/material/sort';
+import { MatTableDataSource } from '@angular/material/table';
 import { Peer, GetInfo } from '../../../shared/models/lndModels';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, getPaginatorLabel, AlertTypeEnum, DataTypeEnum, ScreenSizeEnum } from '../../../shared/services/consts-enums-functions';
 import { LoggerService } from '../../../shared/services/logger.service';
@@ -15,6 +17,7 @@ import { ConnectPeerComponent } from '../connect-peer/connect-peer.component';
 
 import { LNDEffects } from '../../store/lnd.effects';
 import { RTLEffects } from '../../../store/rtl.effects';
+import * as LNDActions from '../../store/lnd.actions';
 import * as RTLActions from '../../../store/rtl.actions';
 import * as fromRTLReducer from '../../../store/rtl.reducers';
 
@@ -26,12 +29,13 @@ import * as fromRTLReducer from '../../../store/rtl.reducers';
     { provide: MatPaginatorIntl, useValue: getPaginatorLabel('Peers') },
   ]
 })
-export class PeersComponent implements OnInit, OnDestroy {
-  @ViewChild(MatSort, { static: true }) sort: MatSort;
-  @ViewChild(MatPaginator, {static: true}) paginator: MatPaginator;
+export class PeersComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild(MatSort, { static: false }) sort: MatSort|undefined;
+  @ViewChild(MatPaginator, {static: false}) paginator: MatPaginator|undefined;
   public availableBalance = 0;
   public faUsers = faUsers;
-  public displayedColumns = [];
+  public displayedColumns: any[] = [];
+  public peersData: Peer[] = [];
   public peers: any;
   public information: GetInfo = {};
   public flgLoading: Array<Boolean | 'error'> = [true]; // 0: peers
@@ -63,26 +67,28 @@ export class PeersComponent implements OnInit, OnDestroy {
     this.store.select('lnd')
     .pipe(takeUntil(this.unSubs[0]))
     .subscribe((rtlStore) => {
-      rtlStore.effectErrorsLnd.forEach(effectsErr => {
+      rtlStore.effectErrors.forEach(effectsErr => {
         if (effectsErr.action === 'FetchPeers') {
           this.flgLoading[0] = 'error';
         }
       });
       this.information = rtlStore.information;
       this.availableBalance = rtlStore.blockchainBalance.total_balance || 0;
-      this.peers = new MatTableDataSource([]);
-      this.peers.data = [];
-      if (rtlStore.peers) {
-        this.peers = new MatTableDataSource<Peer>([...rtlStore.peers]);
-        this.peers.data = rtlStore.peers;
+      this.peersData = rtlStore.peers;
+      if (this.peersData.length > 0) {
+        this.loadPeersTable(this.peersData);
       }
-      this.peers.sort = this.sort;
-      this.peers.paginator = this.paginator;
       if (this.flgLoading[0] !== 'error') {
         this.flgLoading[0] = false;
       }
       this.logger.info(rtlStore);
     });
+  }
+
+  ngAfterViewInit() {
+    if (this.peersData.length > 0) {
+      this.loadPeersTable(this.peersData);
+    }
   }
 
   onPeerClick(selPeer: Peer, event: any) {
@@ -136,18 +142,26 @@ export class PeersComponent implements OnInit, OnDestroy {
     .subscribe(confirmRes => {
       if (confirmRes) {
         this.store.dispatch(new RTLActions.OpenSpinner('Disconnecting Peer...'));
-        this.store.dispatch(new RTLActions.DetachPeer({pubkey: peerToDetach.pub_key}));
+        this.store.dispatch(new LNDActions.DetachPeer({pubkey: peerToDetach.pub_key}));
       }
     });
   }
 
-  applyFilter(selFilter: string) {
-    this.peers.filter = selFilter;
+  applyFilter(selFilter: any) {
+    this.peers.filter = selFilter.value.trim().toLowerCase();
+  }
+
+  loadPeersTable(peers: Peer[]) {
+    this.peers = peers ? new MatTableDataSource<Peer>([...peers]) : new MatTableDataSource([]);
+    this.peers.sort = this.sort;
+    this.peers.sortingDataAccessor = (data: any, sortHeaderId: string) => (data[sortHeaderId] && isNaN(data[sortHeaderId])) ? data[sortHeaderId].toLocaleLowerCase() : data[sortHeaderId] ? +data[sortHeaderId] : null;
+    this.peers.filterPredicate = (peer: Peer, fltr: string) => JSON.stringify(peer).toLowerCase().includes(fltr);
+    this.peers.paginator = this.paginator;
   }
 
   onDownloadCSV() {
     if(this.peers.data && this.peers.data.length > 0) {
-      this.commonService.downloadCSV(this.peers.data, 'Peers');
+      this.commonService.downloadFile(this.peers.data, 'Peers');
     }
   }
 

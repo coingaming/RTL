@@ -2,6 +2,7 @@ import { ActionReducerMap } from '@ngrx/store';
 import { ErrorPayload } from '../shared/models/errorPayload';
 import { RTLConfiguration, ConfigSettingsNode, GetInfoRoot } from '../shared/models/RTLconfig';
 
+import * as fromECL from '../eclair/store/ecl.reducers';
 import * as fromCL from '../clightning/store/cl.reducers';
 import * as fromLND from '../lnd/store/lnd.reducers';
 import * as RTLActions from './rtl.actions';
@@ -13,8 +14,8 @@ export interface RootState {
   nodeData: GetInfoRoot;
 }
 
-const initNodeSettings = { userPersona: 'OPERATOR', themeMode: 'DAY', themeColor: 'PURPLE', channelBackupPath: '', selCurrencyUnit: 'USD', fiatConversion: false, currencyUnits: ['Sats', 'BTC', 'USD'] };
-const initNodeAuthentication = { configPath: '', bitcoindConfigPath: '' };
+const initNodeSettings = { userPersona: 'OPERATOR', themeMode: 'DAY', themeColor: 'PURPLE', channelBackupPath: '', selCurrencyUnit: 'USD', fiatConversion: false, currencyUnits: ['Sats', 'BTC', 'USD'], bitcoindConfigPath: '' };
+const initNodeAuthentication = { configPath: '', swapMacaroonPath: '', boltzMacaroonPath: '',  };
 
 const initRootState: RootState = {
   effectErrorsRoot: [],
@@ -22,7 +23,7 @@ const initRootState: RootState = {
   appConfig: {
     defaultNodeIndex: -1,
     selectedNodeIndex: -1,
-    sso: { rtlSSO: 0, logoutRedirectLink: '/login' },
+    sso: { rtlSSO: 0, logoutRedirectLink: '' },
     enable2FA: false,
     nodes: [{ settings: initNodeSettings, authentication: initNodeAuthentication}]
   },
@@ -52,7 +53,7 @@ export function RootReducer(state = initRootState, action: RTLActions.RTLActions
       return {
         ...initRootState,
         appConfig: state.appConfig,
-        selNode: action.payload,
+        selNode: action.payload
       };
     case RTLActions.SET_SELECTED_NODE:
       return {
@@ -79,10 +80,12 @@ export interface RTLState {
   root: RootState;
   lnd: fromLND.LNDState;
   cl: fromCL.CLState;
+  ecl: fromECL.ECLState;
 }
 
 export const RTLReducer: ActionReducerMap<RTLState> = {
   root: RootReducer,
   lnd: fromLND.LNDReducer,
-  cl: fromCL.CLReducer
+  cl: fromCL.CLReducer,
+  ecl: fromECL.ECLReducer
 };

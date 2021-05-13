@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { MatSnackBar } from '@angular/material';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { DataService } from '../../../shared/services/data.service';
 import { LoggerService } from '../../../shared/services/logger.service';
@@ -24,7 +24,7 @@ export class CLVerifyComponent implements OnInit, OnDestroy {
 
   ngOnInit() {}
 
-  onVerify() {
+  onVerify():boolean|void {
     if ((!this.message || this.message === '') || (!this.signature || this.signature === '')) { return true; }
     this.dataService.verifyMessage(this.message, this.signature).pipe(takeUntil(this.unSubs[0]))
     .subscribe(res => { 

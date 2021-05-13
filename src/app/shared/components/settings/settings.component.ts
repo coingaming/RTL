@@ -1,13 +1,12 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { Router, ResolveEnd } from '@angular/router';
 import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { takeUntil, filter } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
-import { faTools } from '@fortawesome/free-solid-svg-icons';
+import { faUserCog } from '@fortawesome/free-solid-svg-icons';
 
 import { ConfigSettingsNode, RTLConfiguration } from '../../models/RTLconfig';
 import * as fromRTLReducer from '../../../store/rtl.reducers';
-import * as RTLActions from '../../../store/rtl.actions';
 
 @Component({
   selector: 'rtl-settings',
@@ -15,36 +14,29 @@ import * as RTLActions from '../../../store/rtl.actions';
   styleUrls: ['./settings.component.scss']
 })
 export class SettingsComponent implements OnInit, OnDestroy{
-  public faTools = faTools;
-  public showLnConfig = false;
+  public faUserCog = faUserCog;
   public showBitcoind = false;
   public selNode: ConfigSettingsNode;
   public appConfig: RTLConfiguration;
-  public lnImplementationStr = '';
-  public loadTab = 'appSettings';
-  public initializeNodeData = false;
-  private unSubs: Array<Subject<void>> = [new Subject(), new Subject()];
+  public links = [{link: 'app', name: 'Application'}, {link: 'auth', name: 'Authentication'}, {link: 'bconfig', name: 'BitcoinD Config'}];
+  public activeLink = '';
+  private unSubs: Array<Subject<void>> = [new Subject(), new Subject(), new Subject()];
 
-  constructor(private store: Store<fromRTLReducer.RTLState>, private activatedRoute: ActivatedRoute) {}
+  constructor(private store: Store<fromRTLReducer.RTLState>, private router: Router) {}
 
   ngOnInit() {
-    this.activatedRoute.paramMap
-    .pipe(takeUntil(this.unSubs[0]))
-    .subscribe(data => {
-      this.loadTab = window.history.state.loadTab ? window.history.state.loadTab : 'appSettings';
-      this.initializeNodeData = window.history.state.initializeNodeData ? window.history.state.initializeNodeData : false;
-    });    
-    this.store.select('root')
-    .pipe(takeUntil(this.unSubs[1]))
+    let linkFound = this.links.find(link => this.router.url.includes(link.link));
+    this.activeLink = linkFound ? linkFound.link : this.links[0].link;
+    this.router.events.pipe(takeUntil(this.unSubs[0]), filter(e => e instanceof ResolveEnd))
+    .subscribe((value: ResolveEnd) => {
+      let linkFound = this.links.find(link => value.urlAfterRedirects.includes(link.link));
+      this.activeLink = linkFound ? linkFound.link : this.links[0].link;
+    });
+    this.store.select('root').pipe(takeUntil(this.unSubs[1]))
     .subscribe((rtlStore) => {
-      this.showLnConfig = false;
       this.showBitcoind = false;
       this.appConfig = rtlStore.appConfig;
       this.selNode = rtlStore.selNode;
-      this.lnImplementationStr = this.selNode.lnImplementation.toUpperCase() === 'CLT' ? 'C-Lightning Config' : 'LND Config';
-      if (this.selNode.authentication && this.selNode.authentication.configPath && this.selNode.authentication.configPath.trim() !== '') {
-        this.showLnConfig = true;
-      }
       if (this.selNode.settings && this.selNode.settings.bitcoindConfigPath && this.selNode.settings.bitcoindConfigPath.trim() !== '') {
         this.showBitcoind = true;
       }
@@ -52,9 +44,6 @@ export class SettingsComponent implements OnInit, OnDestroy{
   }
 
   ngOnDestroy() {
-    if(this.initializeNodeData) {
-      this.store.dispatch(new RTLActions.SetSelelectedNode({lnNode: this.selNode, isInitialSetup: true}));
-    }
     this.unSubs.forEach(completeSub => {
       completeSub.next();
       completeSub.complete();

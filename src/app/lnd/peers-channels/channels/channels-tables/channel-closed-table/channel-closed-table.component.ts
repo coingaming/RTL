@@ -1,11 +1,13 @@
-import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { Actions } from '@ngrx/effects';
 import { faHistory } from '@fortawesome/free-solid-svg-icons';
 
-import { MatTableDataSource, MatSort, MatPaginator, MatPaginatorIntl } from '@angular/material';
+import { MatPaginator, MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSort } from '@angular/material/sort';
+import { MatTableDataSource } from '@angular/material/table';
 import { ClosedChannel } from '../../../../../shared/models/lndModels';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, getPaginatorLabel, AlertTypeEnum, DataTypeEnum, ScreenSizeEnum, CHANNEL_CLOSURE_TYPE } from '../../../../../shared/services/consts-enums-functions';
 import { LoggerService } from '../../../../../shared/services/logger.service';
@@ -22,15 +24,15 @@ import * as fromRTLReducer from '../../../../../store/rtl.reducers';
     { provide: MatPaginatorIntl, useValue: getPaginatorLabel('Channels') }
   ]
 })
-export class ChannelClosedTableComponent implements OnInit, OnDestroy {
-  @ViewChild(MatSort, { static: true }) sort: MatSort;
-  @ViewChild(MatPaginator, {static: true}) paginator: MatPaginator;
+export class ChannelClosedTableComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild(MatSort, { static: false }) sort: MatSort|undefined;
+  @ViewChild(MatPaginator, {static: false}) paginator: MatPaginator|undefined;
   public channelClosureType = CHANNEL_CLOSURE_TYPE;
   public faHistory = faHistory;
-  public displayedColumns = [];
+  public displayedColumns: any[] = [];
+  public closedChannelsData: ClosedChannel[] =[];
   public closedChannels: any;
   public flgLoading: Array<Boolean | 'error'> = [true];
-  public selectedFilter = '';
   public flgSticky = false;
   public pageSize = PAGE_SIZE;
   public pageSizeOptions = PAGE_SIZE_OPTIONS;
@@ -53,31 +55,33 @@ export class ChannelClosedTableComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.actions$.pipe(takeUntil(this.unsub[2]), filter((action) => action.type === RTLActions.RESET_LND_STORE)).subscribe((resetLndStore: RTLActions.ResetLNDStore) => {
-      this.store.dispatch(new RTLActions.FetchClosedChannels());
-    });
     this.store.select('lnd')
     .pipe(takeUntil(this.unsub[0]))
     .subscribe((rtlStore) => {
-      rtlStore.effectErrorsLnd.forEach(effectsErr => {
+      rtlStore.effectErrors.forEach(effectsErr => {
         if (effectsErr.action === 'FetchChannels/closed') {
           this.flgLoading[0] = 'error';
         }
       });
-      if (rtlStore.closedChannels) {
-        this.loadClosedChannelsTable(rtlStore.closedChannels);
+      this.closedChannelsData = rtlStore.closedChannels;
+      if (this.closedChannelsData.length > 0) {
+        this.loadClosedChannelsTable(this.closedChannelsData);
       }
       if (this.flgLoading[0] !== 'error') {
         this.flgLoading[0] = ( rtlStore.closedChannels) ? false : true;
       }
       this.logger.info(rtlStore);
     });
-
   }
 
-  applyFilter(selFilter: string) {
-    this.selectedFilter = selFilter;
-    this.closedChannels.filter = selFilter;
+  ngAfterViewInit() {
+    if (this.closedChannelsData.length > 0) {
+      this.loadClosedChannelsTable(this.closedChannelsData);
+    }
+  }
+
+  applyFilter(selFilter: any) {
+    this.closedChannels.filter = selFilter.value.trim().toLowerCase();
   }
 
   onClosedChannelClick(selChannel: ClosedChannel, event: any) {
@@ -103,17 +107,15 @@ export class ChannelClosedTableComponent implements OnInit, OnDestroy {
   loadClosedChannelsTable(closedChannels) {
     this.closedChannels = new MatTableDataSource<ClosedChannel>([...closedChannels]);
     this.closedChannels.sort = this.sort;
+    this.closedChannels.sortingDataAccessor = (data: any, sortHeaderId: string) => (data[sortHeaderId] && isNaN(data[sortHeaderId])) ? data[sortHeaderId].toLocaleLowerCase() : data[sortHeaderId] ? +data[sortHeaderId] : null;
+    this.closedChannels.filterPredicate = (channel: ClosedChannel, fltr: string) => JSON.stringify(channel).toLowerCase().includes(fltr);
     this.closedChannels.paginator = this.paginator;
     this.logger.info(this.closedChannels);
   }
 
-  resetData() {
-    this.selectedFilter = '';
-  }
-
   onDownloadCSV() {
     if(this.closedChannels.data && this.closedChannels.data.length > 0) {
-      this.commonService.downloadCSV(this.closedChannels.data, 'Closed-channels');
+      this.commonService.downloadFile(this.closedChannels.data, 'Closed-channels');
     }
   }
 

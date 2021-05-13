@@ -1,6 +1,10 @@
-import { Component, OnInit, OnChanges, ViewChild, Input } from '@angular/core';
+import { Component, OnInit, OnChanges, ViewChild, Input, SimpleChanges, OnDestroy, AfterViewInit } from '@angular/core';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
-import { MatTableDataSource, MatSort, MatPaginator, MatPaginatorIntl } from '@angular/material';
+import { MatPaginator, MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSort } from '@angular/material/sort';
+import { MatTableDataSource } from '@angular/material/table';
 
 import { ForwardingEvent } from '../../../shared/models/lndModels';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, getPaginatorLabel, AlertTypeEnum, DataTypeEnum, ScreenSizeEnum } from '../../../shared/services/consts-enums-functions';
@@ -18,17 +22,21 @@ import * as fromRTLReducer from '../../../store/rtl.reducers';
     { provide: MatPaginatorIntl, useValue: getPaginatorLabel('Events') }
   ]
 })
-export class ForwardingHistoryComponent implements OnInit, OnChanges {
-  @ViewChild(MatSort, { static: true }) sort: MatSort;
-  @ViewChild(MatPaginator, {static: true}) paginator: MatPaginator;
-  @Input() forwardingHistoryData: any;
-  public displayedColumns = [];
+export class ForwardingHistoryComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
+  @ViewChild(MatSort, { static: false }) sort: MatSort|undefined;
+  @ViewChild(MatPaginator, {static: false}) paginator: MatPaginator|undefined;
+  @Input() eventsData = [];
+  @Input() filterValue = '';
+  public forwardingHistoryData = [];
+  public errorMessage = '';
+  public displayedColumns: any[] = [];
   public forwardingHistoryEvents: any;
   public flgSticky = false;
   public pageSize = PAGE_SIZE;
   public pageSizeOptions = PAGE_SIZE_OPTIONS;
   public screenSize = '';
   public screenSizeEnum = ScreenSizeEnum;
+  private unSubs: Array<Subject<void>> = [new Subject(), new Subject(), new Subject()];
 
   constructor(private logger: LoggerService, private commonService: CommonService, private store: Store<fromRTLReducer.RTLState>) {
     this.screenSize = this.commonService.getScreenSize();
@@ -44,10 +52,39 @@ export class ForwardingHistoryComponent implements OnInit, OnChanges {
     }
   }
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.store.select('lnd')
+    .pipe(takeUntil(this.unSubs[0]))
+    .subscribe((rtlStore) => {
+      if (this.eventsData.length <= 0) {
+        this.errorMessage = '';
+        rtlStore.effectErrors.forEach(effectsErr => {
+          if (effectsErr.action === 'GetForwardingHistory') {
+            this.errorMessage = (typeof(effectsErr.message) === 'object') ? JSON.stringify(effectsErr.message) : effectsErr.message;
+          }
+        });
+        this.forwardingHistoryData = (rtlStore.forwardingHistory && rtlStore.forwardingHistory.forwarding_events) ? rtlStore.forwardingHistory.forwarding_events : [];
+        this.loadForwardingEventsTable(this.forwardingHistoryData);
+        this.logger.info(rtlStore);
+      }
+    });
+  }
 
-  ngOnChanges() {
-    this.loadForwardingEventsTable(this.forwardingHistoryData);
+  ngAfterViewInit() {
+    if (this.forwardingHistoryData.length > 0) {
+      this.loadForwardingEventsTable(this.forwardingHistoryData);
+    }
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes.eventsData) {
+      this.eventsData = changes.eventsData.currentValue;
+      this.forwardingHistoryData = this.eventsData;
+      this.loadForwardingEventsTable(this.forwardingHistoryData);
+    }
+    if (changes.filterValue) {
+      this.applyFilter();
+    }
   }
 
   onForwardingEventClick(selFEvent: ForwardingEvent, event: any) {
@@ -69,20 +106,28 @@ export class ForwardingHistoryComponent implements OnInit, OnChanges {
   }
 
   loadForwardingEventsTable(forwardingEvents: ForwardingEvent[]) {
-    this.forwardingHistoryEvents = new MatTableDataSource<ForwardingEvent>([...forwardingEvents]);
+    this.forwardingHistoryEvents = forwardingEvents ? new MatTableDataSource<ForwardingEvent>([...forwardingEvents]) : new MatTableDataSource([]);
     this.forwardingHistoryEvents.sort = this.sort;
+    this.forwardingHistoryEvents.sortingDataAccessor = (data: any, sortHeaderId: string) => (data[sortHeaderId] && isNaN(data[sortHeaderId])) ? data[sortHeaderId].toLocaleLowerCase() : data[sortHeaderId] ? +data[sortHeaderId] : null;
+    this.forwardingHistoryEvents.filterPredicate = (fhEvents: ForwardingEvent, fltr: string) => JSON.stringify(fhEvents).toLowerCase().includes(fltr);
     this.forwardingHistoryEvents.paginator = this.paginator;
     this.logger.info(this.forwardingHistoryEvents);
   }
 
   onDownloadCSV() {
     if(this.forwardingHistoryEvents.data && this.forwardingHistoryEvents.data.length > 0) {
-      this.commonService.downloadCSV(this.forwardingHistoryEvents.data, 'Forwarding-history');
+      this.commonService.downloadFile(this.forwardingHistoryEvents.data, 'Forwarding-history');
     }
   }
 
-  applyFilter(selFilter: string) {
-    this.forwardingHistoryEvents.filter = selFilter;
+  applyFilter() {
+    this.forwardingHistoryEvents.filter = this.filterValue.trim().toLowerCase();
   }
 
+  ngOnDestroy() {
+    this.unSubs.forEach(completeSub => {
+      completeSub.next();
+      completeSub.complete();
+    });
+  }
 }

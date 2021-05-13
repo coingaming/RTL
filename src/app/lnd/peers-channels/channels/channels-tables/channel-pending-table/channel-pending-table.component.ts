@@ -1,13 +1,15 @@
-import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 
-import { MatTableDataSource, MatSort } from '@angular/material';
-import { Channel, GetInfo, PendingChannels } from '../../../../../shared/models/lndModels';
+import { MatSort } from '@angular/material/sort';
+import { MatTableDataSource } from '@angular/material/table';
+import { Channel, GetInfo, PendingChannels, PendingOpenChannel } from '../../../../../shared/models/lndModels';
 import { SelNodeChild } from '../../../../../shared/models/RTLconfig';
 import { LoggerService } from '../../../../../shared/services/logger.service';
 import { CommonService } from '../../../../../shared/services/common.service';
+import { BumpFeeComponent } from '../../bump-fee-modal/bump-fee.component';
 
 import * as RTLActions from '../../../../../store/rtl.actions';
 import * as fromRTLReducer from '../../../../../store/rtl.reducers';
@@ -18,10 +20,10 @@ import { AlertTypeEnum, DataTypeEnum, ScreenSizeEnum } from '../../../../../shar
   templateUrl: './channel-pending-table.component.html',
   styleUrls: ['./channel-pending-table.component.scss']
 })
-export class ChannelPendingTableComponent implements OnInit, OnDestroy {
-  @ViewChild(MatSort, { static: true }) sort: MatSort;
+export class ChannelPendingTableComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild(MatSort, { static: false }) sort: MatSort|undefined;
   public selNode: SelNodeChild = {};
-  public selectedFilter = 0;
+  public selectedFilter = '';
   public information: GetInfo = {};
   public pendingChannels: PendingChannels = {};
   public displayedOpenColumns = ['remote_alias', 'commit_fee', 'commit_weight', 'capacity', 'actions'];
@@ -65,7 +67,7 @@ export class ChannelPendingTableComponent implements OnInit, OnDestroy {
     this.store.select('lnd')
     .pipe(takeUntil(this.unSubs[0]))
     .subscribe((rtlStore) => {
-      rtlStore.effectErrorsLnd.forEach(effectsErr => {
+      rtlStore.effectErrors.forEach(effectsErr => {
         if (effectsErr.action === 'FetchChannels/pending') {
           this.flgLoading[0] = 'error';
         }
@@ -76,16 +78,16 @@ export class ChannelPendingTableComponent implements OnInit, OnDestroy {
       if (this.pendingChannels.total_limbo_balance) {
         this.flgLoading[1] = false;
       }
-      if (this.pendingChannels.pending_open_channels) {
+      if (this.pendingChannels.pending_open_channels && this.pendingChannels.pending_open_channels.length && this.pendingChannels.pending_open_channels.length > 0) {
         this.loadOpenChannelsTable(this.pendingChannels.pending_open_channels);
       }
-      if (this.pendingChannels.pending_force_closing_channels) {
+      if (this.pendingChannels.pending_force_closing_channels && this.pendingChannels.pending_force_closing_channels.length && this.pendingChannels.pending_force_closing_channels.length > 0) {
         this.loadForceClosingChannelsTable(this.pendingChannels.pending_force_closing_channels);
       }
-      if (this.pendingChannels.pending_closing_channels) {
+      if (this.pendingChannels.pending_closing_channels && this.pendingChannels.pending_closing_channels.length && this.pendingChannels.pending_closing_channels.length > 0) {
         this.loadClosingChannelsTable(this.pendingChannels.pending_closing_channels);
       }
-      if (this.pendingChannels.waiting_close_channels) {
+      if (this.pendingChannels.waiting_close_channels && this.pendingChannels.waiting_close_channels.length && this.pendingChannels.waiting_close_channels.length > 0) {
         this.loadWaitClosingChannelsTable(this.pendingChannels.waiting_close_channels);
       }
       if (this.flgLoading[0] !== 'error') {
@@ -94,6 +96,21 @@ export class ChannelPendingTableComponent implements OnInit, OnDestroy {
       this.logger.info(rtlStore);
     });
 
+  }
+
+  ngAfterViewInit() {
+    if (this.pendingChannels.pending_open_channels && this.pendingChannels.pending_open_channels.length && this.pendingChannels.pending_open_channels.length > 0) {
+      this.loadOpenChannelsTable(this.pendingChannels.pending_open_channels);
+    }
+    if (this.pendingChannels.pending_force_closing_channels && this.pendingChannels.pending_force_closing_channels.length && this.pendingChannels.pending_force_closing_channels.length > 0) {
+      this.loadForceClosingChannelsTable(this.pendingChannels.pending_force_closing_channels);
+    }
+    if (this.pendingChannels.pending_closing_channels && this.pendingChannels.pending_closing_channels.length && this.pendingChannels.pending_closing_channels.length > 0) {
+      this.loadClosingChannelsTable(this.pendingChannels.pending_closing_channels);
+    }
+    if (this.pendingChannels.waiting_close_channels && this.pendingChannels.waiting_close_channels.length && this.pendingChannels.waiting_close_channels.length > 0) {
+      this.loadWaitClosingChannelsTable(this.pendingChannels.waiting_close_channels);
+    }
   }
 
   onOpenClick(selChannel: any) {
@@ -120,6 +137,13 @@ export class ChannelPendingTableComponent implements OnInit, OnDestroy {
     }}));
   }
 
+  onBumpFee(selChannel: PendingOpenChannel) {
+    this.store.dispatch(new RTLActions.OpenAlert({ data: { 
+      pendingChannel: selChannel,
+      component: BumpFeeComponent
+    }}));
+  }
+  
   onForceClosingClick(selChannel: any) {
     const fcChannelObj1 = JSON.parse(JSON.stringify(selChannel, ['closing_txid', 'limbo_balance', 'maturity_height', 'blocks_til_maturity', 'recovered_balance'], 2));
     const fcChannelObj2 = JSON.parse(JSON.stringify(selChannel.channel, ['remote_alias', 'channel_point', 'remote_balance', 'local_balance', 'remote_node_pub', 'capacity'], 2));
@@ -169,9 +193,11 @@ export class ChannelPendingTableComponent implements OnInit, OnDestroy {
   onWaitClosingClick(selChannel: any) {
     const fcChannelObj1 = JSON.parse(JSON.stringify(selChannel, ['limbo_balance'], 2));
     const fcChannelObj2 = JSON.parse(JSON.stringify(selChannel.channel, ['remote_alias', 'channel_point', 'remote_balance', 'local_balance', 'remote_node_pub', 'capacity'], 2));
+    const fcChannelObj3 = JSON.parse(JSON.stringify(selChannel.commitments, ['local_txid'], 2));
     const preOrderedChannel: any = {};
-    Object.assign(preOrderedChannel, fcChannelObj1, fcChannelObj2);
+    Object.assign(preOrderedChannel, fcChannelObj1, fcChannelObj2, fcChannelObj3);
     const reorderedChannel = [
+      [{key: 'local_txid', value: preOrderedChannel.local_txid, title: 'Transaction ID', width: 100, type: DataTypeEnum.STRING}],
       [{key: 'channel_point', value: preOrderedChannel.channel_point, title: 'Channel Point', width: 100, type: DataTypeEnum.STRING}],
       [{key: 'remote_alias', value: preOrderedChannel.remote_alias, title: 'Peer Alias', width: 25, type: DataTypeEnum.STRING},
         {key: 'remote_node_pub', value: preOrderedChannel.remote_node_pub, title: 'Peer Node Pubkey', width: 75, type: DataTypeEnum.STRING}],
@@ -194,6 +220,8 @@ export class ChannelPendingTableComponent implements OnInit, OnDestroy {
     this.pendingOpenChannelsLength = (channels.length) ? channels.length : 0;
     this.pendingOpenChannels = new MatTableDataSource<Channel>([...channels]);
     this.pendingOpenChannels.sort = this.sort;
+    this.pendingOpenChannels.sortingDataAccessor = (data: any, sortHeaderId: string) => (data[sortHeaderId] && isNaN(data[sortHeaderId])) ? data[sortHeaderId].toLocaleLowerCase() : data[sortHeaderId] ? +data[sortHeaderId] : null;
+    this.pendingOpenChannels.filterPredicate = (channel: any, fltr: string) => JSON.stringify(channel).toLowerCase().includes(fltr);
     this.logger.info(this.pendingOpenChannels);
   }
 
@@ -204,6 +232,8 @@ export class ChannelPendingTableComponent implements OnInit, OnDestroy {
     this.pendingForceClosingChannelsLength = (channels.length) ? channels.length : 0;
     this.pendingForceClosingChannels = new MatTableDataSource<Channel>([...channels]);
     this.pendingForceClosingChannels.sort = this.sort;
+    this.pendingForceClosingChannels.sortingDataAccessor = (data: any, sortHeaderId: string) => (data[sortHeaderId] && isNaN(data[sortHeaderId])) ? data[sortHeaderId].toLocaleLowerCase() : data[sortHeaderId] ? +data[sortHeaderId] : null;
+    this.pendingForceClosingChannels.filterPredicate = (channel: any, fltr: string) => JSON.stringify(channel).toLowerCase().includes(fltr);
     this.logger.info(this.pendingForceClosingChannels);
   }
 
@@ -214,6 +244,8 @@ export class ChannelPendingTableComponent implements OnInit, OnDestroy {
     this.pendingClosingChannelsLength = (channels.length) ? channels.length : 0;
     this.pendingClosingChannels = new MatTableDataSource<Channel>([...channels]);
     this.pendingClosingChannels.sort = this.sort;
+    this.pendingClosingChannels.sortingDataAccessor = (data: any, sortHeaderId: string) => (data[sortHeaderId] && isNaN(data[sortHeaderId])) ? data[sortHeaderId].toLocaleLowerCase() : data[sortHeaderId] ? +data[sortHeaderId] : null;
+    this.pendingClosingChannels.filterPredicate = (channel: any, fltr: string) => JSON.stringify(channel).toLowerCase().includes(fltr);
     this.logger.info(this.pendingClosingChannels);
   }
 
@@ -224,11 +256,13 @@ export class ChannelPendingTableComponent implements OnInit, OnDestroy {
     this.pendingWaitClosingChannelsLength = (channels.length) ? channels.length : 0;
     this.pendingWaitClosingChannels = new MatTableDataSource<Channel>([...channels]);
     this.pendingWaitClosingChannels.sort = this.sort;
+    this.pendingWaitClosingChannels.sortingDataAccessor = (data: any, sortHeaderId: string) => (data[sortHeaderId] && isNaN(data[sortHeaderId])) ? data[sortHeaderId].toLocaleLowerCase() : data[sortHeaderId] ? +data[sortHeaderId] : null;
+    this.pendingWaitClosingChannels.filterPredicate = (channel: any, fltr: string) => JSON.stringify(channel).toLowerCase().includes(fltr);
     this.logger.info(this.pendingWaitClosingChannels);
   }
 
-  applyFilter(selFilter: number) {
-    this.selectedFilter = selFilter;
+  applyFilter(selFilter: string) {
+    this.selectedFilter = selFilter.trim().toLowerCase();
   }
 
   ngOnDestroy() {

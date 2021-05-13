@@ -3,9 +3,8 @@
 
 <a href="https://snyk.io/test/github/Ride-The-Lightning/RTL"><img src="https://snyk.io/test/github/Ride-The-Lightning/RTL/badge.svg" alt="Known Vulnerabilities" data-canonical-src="https://snyk.io/test/github/Ride-The-Lightning/RTL" style="max-width:100%;"></a>
 [![license](https://img.shields.io/github/license/DAVFoundation/captain-n3m0.svg?style=flat-square)](https://github.com/DAVFoundation/captain-n3m0/blob/master/LICENSE)
-### Stable Release: v0.7.1
 
-**Intro** -- [Application Features](docs/Application_features.md) -- [Road Map](docs/Roadmap.md) -- [LND API Coverage](docs/LNDAPICoverage.md) -- [Application Configurations](docs/Application_configurations) -- [C-Lightning](docs/C-Lightning-setup.md)
+**Intro** -- [Application Features](docs/Application_features.md) -- [Road Map](docs/Roadmap.md) -- [Application Configurations](docs/Application_configurations) -- [C-Lightning](docs/C-Lightning-setup.md) -- [Eclair](docs/Eclair-setup.md) -- [Contribution](docs/Contributing.md)
 
 * [Introduction](#intro)
 * [Architecture](#arch)
@@ -18,9 +17,11 @@
 
 ### <a name="intro"></a>Introduction
 RTL is a full function, device agnostic, web user interface to help manage lightning node operations.
-RTL is available on LND and C-Lightning implementations.
+RTL is available on [LND](https://github.com/lightningnetwork/lnd), [C-Lightning](https://github.com/ElementsProject/lightning) and [Eclair](https://github.com/ACINQ/eclair) implementations.
 
-This page covers instructions for LND. For C-Lightning, refer to [this](docs/C-Lightning-setup.md) page.
+* C-Lightning users, refer to [this](docs/C-Lightning-setup.md) page for install instructions.
+* Eclair users, refer to [this](docs/Eclair-setup.md) page for install instructions.
+* LND users, follow the instructions below
 
 Lightning Network Daemon(LND) is an implementation of Lightning Network BOLT protocol by [Lightning Labs](https://lightning.engineering/).
 
@@ -34,6 +35,8 @@ RTL is available on the below platforms/services:
 * [myNode](http://mynodebtc.com)
 * [Lux Node](https://luxnode.io/product/lux-node/)
 * [BCubium](https://bgeometrics.com)
+* [Start9Labs](https://start9labs.com)
+* [Umbrel](https://github.com/getumbrel/umbrel)
 
 Docker Image: https://hub.docker.com/r/shahanafarooqui/rtl
 
@@ -43,8 +46,6 @@ Docker Image: https://hub.docker.com/r/shahanafarooqui/rtl
 ### <a name="prereq"></a>Prerequisites
 * Functioning and synced LND lightning node.
 * Node.js, which can be downloaded [here](https://nodejs.org/en/download/)
-  * On Ubuntu, `g++` is required to install the node-sass dependency. This is available in the `build-essential` package.
-	* The Most recent versions of node.js might give errors while installing node-sass. Use node.js LTS version 8 or 10 as a solution.
 * Recommended Browsers: Chrome, Firefox, MS Edge
 
 ### <a name="install"></a>Installation
@@ -91,8 +92,11 @@ Example RTL-Config.json:
       "lnNode": "LND Testnet",
       "lnImplementation": "LND",
       "Authentication": {
-        "macaroonPath": "<Complete path of the folder containing admin.macaroon for the node # 1>",
-        "configPath": "<Optional:Path of the lnd.conf if present locally or empty>"
+        "macaroonPath": "<Complete path of the folder containing LND's admin.macaroon for the node # 1>",
+        "swapMacaroonPath": "<Complete path of the folder containing Loop's loop.macaroon for the node>",
+        "boltzMacaroonPath": "<Complete path of the folder containing Boltz admin.macaroon for the node>",
+        "configPath": "<Optional:Path of the .conf if present locally or empty>",
+        "lnApiPassword": "<Optional:Can be used to provide password in ECL implementation>"
       },
       "Settings": {
         "userPersona": "OPERATOR",
@@ -102,8 +106,9 @@ Example RTL-Config.json:
         "bitcoindConfigPath": "<Optional: path of bitcoind.conf path if available locally>",
         "enableLogging": true,
         "fiatConversion": false,
-        "lnServerUrl": "<url for LND REST APIs for node #1 e.g. https://192.168.0.1:8080/v1>",
-        "swapServerUrl": "<url for swap server REST APIs for the node. e.g. http://localhost:8081/v1>"
+        "lnServerUrl": "<url for LND REST APIs for node #1 e.g. https://192.168.0.1:8080>",
+        "swapServerUrl": "<url for swap server REST APIs for the node. e.g. https://localhost:8081>",
+        "boltzServerUrl": "<url for boltz server REST APIs for the node. e.g. https://localhost:9003>"
       }
     }
   ]

@@ -1,12 +1,12 @@
 var request = require('request-promise');
 var common = require('../../common');
-var logger = require('../logger');
+var logger = require('../shared/logger');
 var swtch = require('./switch');
 var options = {};
 
 exports.getFees = (req, res, next) => {
   options = common.getOptions();
-  options.url = common.getSelLNServerUrl() + '/fees';
+  options.url = common.getSelLNServerUrl() + '/v1/fees';
   request(options).then((body) => {
     logger.info({fileName: 'Fees', msg: 'Fee Received: ' + JSON.stringify(body)});
     if(!body || body.error) {
@@ -34,8 +34,9 @@ exports.getFees = (req, res, next) => {
       } else {
         body.btc_month_fee_sum = common.convertToBTC(body.month_fee_sum);
       }
-      let current_time = Math.round((new Date().getTime()) / 1000);
-      let month_start_time = current_time - 2629743;
+      let today = new Date(Date.now());
+      let current_time = Math.round((today.getTime()) / 1000);
+      let month_start_time = Math.round((new Date(today.getFullYear(), today.getMonth() - 1, today.getDate() + 1, 0, 0, 0).getTime()) / 1000);
       let week_start_time = current_time - 604800;
       let day_start_time = current_time - 86400;
       swtch.getAllForwardingEvents(month_start_time, current_time, 0, (history) => {

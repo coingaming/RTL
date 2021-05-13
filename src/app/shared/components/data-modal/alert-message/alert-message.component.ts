@@ -1,19 +1,35 @@
-import { Component, OnInit, AfterViewChecked, Inject, ViewChild, ElementRef } from '@angular/core';
-import { MatDialogRef, MAT_DIALOG_DATA, MatSnackBar } from '@angular/material';
+import { Component, OnInit, AfterViewChecked, Inject, ViewChild, ElementRef, OnDestroy, Renderer2 } from '@angular/core';
+import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { CommonService } from '../../../services/common.service';
 import { LoggerService } from '../../../services/logger.service';
 import { AlertData } from '../../../models/alertData';
-import { AlertTypeEnum, DataTypeEnum, ScreenSizeEnum, SwapStateEnum } from '../../../services/consts-enums-functions';
+import { AlertTypeEnum, DataTypeEnum, ScreenSizeEnum, LoopStateEnum } from '../../../services/consts-enums-functions';
 
 @Component({
   selector: 'rtl-alert-message',
   templateUrl: './alert-message.component.html',
   styleUrls: ['./alert-message.component.scss']
 })
-export class AlertMessageComponent implements OnInit, AfterViewChecked {
-  @ViewChild('scrollContainer', { static: true }) scrollContainer: ElementRef;
-  public swapStateEnum = SwapStateEnum;
+export class AlertMessageComponent implements OnInit, AfterViewChecked, OnDestroy {
+  private scrollContainer: ElementRef;
+  @ViewChild('scrollContainer') set container(containerContent: ElementRef) {
+    if(containerContent) { 
+      this.scrollContainer = containerContent;
+      if (this.scrollContainer && this.scrollContainer.nativeElement) {
+        this.unlistenEnd = this.renderer.listen(this.scrollContainer.nativeElement, 'ps-y-reach-end', (event) => { 
+          this.scrollDirection = 'UP';
+        });
+        this.unlistenStart = this.renderer.listen(this.scrollContainer.nativeElement, 'ps-y-reach-start', (event) => { 
+          this.scrollDirection = 'DOWN';
+        });
+      }
+    }
+  }
+  private unlistenStart: () => void;
+  private unlistenEnd: () => void;
+  public LoopStateEnum = LoopStateEnum;
   public showQRField = '';
   public showQRName = '';  
   public showCopyName = '';
@@ -24,9 +40,10 @@ export class AlertMessageComponent implements OnInit, AfterViewChecked {
   public dataTypeEnum = DataTypeEnum;
   public screenSize = '';
   public screenSizeEnum = ScreenSizeEnum;
+  public scrollDirection = 'DOWN';
   public shouldScroll = true;
 
-  constructor(public dialogRef: MatDialogRef<AlertMessageComponent>, @Inject(MAT_DIALOG_DATA) public data: AlertData, private logger: LoggerService, private snackBar: MatSnackBar, private commonService: CommonService) { }
+  constructor(public dialogRef: MatDialogRef<AlertMessageComponent>, @Inject(MAT_DIALOG_DATA) public data: AlertData, private logger: LoggerService, private snackBar: MatSnackBar, private commonService: CommonService, private renderer: Renderer2) { }
 
   ngOnInit() {
     this.screenSize = this.commonService.getScreenSize();
@@ -44,11 +61,17 @@ export class AlertMessageComponent implements OnInit, AfterViewChecked {
   }
 
   ngAfterViewChecked() {
-    this.shouldScroll = this.scrollContainer.nativeElement.classList.value.includes('ps--active-y');
+    setTimeout(() => {
+      this.shouldScroll = this.scrollContainer && this.scrollContainer.nativeElement && this.scrollContainer.nativeElement.classList.value.includes('ps--active-y');
+    }, 500);
   }
 
-  onScrollDown() {
-    this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollTop + 62.6;
+  onScroll() {
+    if (this.scrollDirection === 'DOWN') {
+      this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollTop + 62.6;
+    } else {
+      this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollTop - 62.6;
+    }
   }
 
   onCopyField(payload: string) {
@@ -58,5 +81,10 @@ export class AlertMessageComponent implements OnInit, AfterViewChecked {
 
   onClose() {
     this.dialogRef.close(false);
+  }
+
+  ngOnDestroy() {
+    if (this.unlistenStart) { this.unlistenStart(); }
+    if (this.unlistenEnd) { this.unlistenEnd(); }
   }
 }

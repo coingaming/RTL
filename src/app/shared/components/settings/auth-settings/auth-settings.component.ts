@@ -4,7 +4,7 @@ import { Subject } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { Actions } from '@ngrx/effects';
-import { faUserLock, faUserClock, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
+import { faUserLock, faUserClock, faInfoCircle, faLock } from '@fortawesome/free-solid-svg-icons';
 import * as sha256 from 'sha256';
 
 import { TwoFactorAuthComponent } from '../../data-modal/two-factor-auth/two-factor-auth.component';
@@ -24,40 +24,51 @@ export class AuthSettingsComponent implements OnInit, OnDestroy {
   public faInfoCircle = faInfoCircle;
   public faUserLock = faUserLock;
   public faUserClock = faUserClock;
+  public faLock = faLock;
   public currPassword = '';
   public newPassword = '';
   public confirmPassword = '';
   public errorMsg = '';
   public errorConfirmMsg = '';
+  public initializeNodeData = false;
   public appConfig: RTLConfiguration;
   public selNode: ConfigSettingsNode;
-  unSubs: Array<Subject<void>> = [new Subject(), new Subject()];
+  unSubs: Array<Subject<void>> = [new Subject(), new Subject(), new Subject()];
 
   constructor(private store: Store<fromRTLReducer.RTLState>, private logger: LoggerService, private actions$: Actions, private router: Router) {}
 
   ngOnInit() {
+    this.initializeNodeData = !!history.state.initial;
     this.store.select('root')
-    .pipe(takeUntil(this.unSubs[0]))
+    .pipe(takeUntil(this.unSubs[1]))
     .subscribe((rtlStore) => {
       this.appConfig = rtlStore.appConfig;
       this.selNode = rtlStore.selNode;
       this.logger.info(rtlStore);
     });
-    this.actions$.pipe(takeUntil(this.unSubs[1]),
+    this.actions$.pipe(takeUntil(this.unSubs[2]),
     filter((action) => action.type === RTLActions.RESET_PASSWORD_RES))
     .subscribe((action: (RTLActions.ResetPasswordRes)) => {
       if (this.currPassword.toLowerCase() === 'password') {
-        if (this.selNode.lnImplementation === 'LND') {
-          this.router.navigate(['/lnd/home']);
-        } else {
-          this.router.navigate(['/cl/home']);
+        switch (this.selNode.lnImplementation.toUpperCase()) {
+          case 'CLT':
+            this.router.navigate(['/cl/home']);
+            break;
+        
+          case 'ECL':
+            this.router.navigate(['/ecl/home']);
+            break;
+
+          default:
+            this.router.navigate(['/lnd/home']);
+            break;
         }
       }
       this.form.resetForm();
     });    
   }
 
-  onChangePassword() {
+  onChangePassword():boolean|void {
     if(!this.currPassword || !this.newPassword || !this.confirmPassword || this.currPassword === this.newPassword || this.newPassword !== this.confirmPassword) { return true; }
     this.store.dispatch(new RTLActions.ResetPassword({currPassword: sha256(this.currPassword), newPassword: sha256(this.newPassword)}));
   }
@@ -109,7 +120,14 @@ export class AuthSettingsComponent implements OnInit, OnDestroy {
     }}));
   }
 
+  onResetPassword() {
+    this.form.resetForm();
+  } 
+
   ngOnDestroy() {
+    if(this.initializeNodeData) {
+      this.store.dispatch(new RTLActions.SetSelelectedNode({lnNode: this.selNode, isInitialSetup: true}));
+    }
     this.unSubs.forEach(unsub => {
       unsub.next();
       unsub.complete();

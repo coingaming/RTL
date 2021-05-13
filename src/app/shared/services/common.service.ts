@@ -11,6 +11,7 @@ export class CommonService implements OnInit {
   CurrencyUnitEnum = CurrencyUnitEnum;
   conversionData = { data: null, last_fetched: null };
   private screenSize = ScreenSizeEnum.MD;
+  private containerSize = {width: 1200, height: 800};
 
   constructor(private dataService: DataService) {}
 
@@ -24,11 +25,43 @@ export class CommonService implements OnInit {
     this.screenSize = screenSize;
   }
 
+  getContainerSize() {
+    return this.containerSize;
+  }
+
+  setContainerSize(width: number, height) {
+    this.containerSize = {width: width, height: height};
+  }
+
+  sortByKey(array: any[], key: string, keyDataType: string, direction = 'asc') {
+    if (keyDataType === 'number') {
+      if (direction === 'desc') {
+        return array.sort((a, b) => +a[key] > +b[key] ? -1 : 1);
+      } else {
+        return array.sort((a, b) => +a[key] > +b[key] ? 1 : -1);
+      }
+    } else {
+      if (direction === 'desc') {
+        return array.sort((a, b) => a[key] > b[key] ? -1 : 1);
+      } else {
+        return array.sort((a, b) => a[key] > b[key] ? 1 : -1);
+      }
+    }
+  }
+
   sortDescByKey(array, key) {
     return array.sort(function (a, b) {
       const x = +a[key];
       const y = +b[key];
       return ((x > y) ? -1 : ((x < y) ? 1 : 0));
+    });
+  }
+
+  sortAscByKey(array, key) {
+    return array.sort(function (a, b) {
+      const x = +a[key];
+      const y = +b[key];
+      return ((x < y) ? -1 : ((x > y) ? 1 : 0));
     });
   }
 
@@ -179,17 +212,22 @@ export class CommonService implements OnInit {
     return new Date(num * 1000).toUTCString().substring(5, 22).replace(' ', '/').replace(' ', '/').toUpperCase();
   };
 
-  downloadCSV(data: any[], filename: string) {
-    let blob = new Blob(['\ufeff' + this.convertToCSV(data)], { type: 'text/csv;charset=utf-8;' });
-    let downloadUrl = document.createElement("a");
+  downloadFile(data: any[], filename: string, fromFormat = '.json', toFormat = '.csv') {
+    let blob = new Blob();
+    if (fromFormat === '.json') {
+      blob = new Blob(['\ufeff' + this.convertToCSV(data)], { type: 'text/csv;charset=utf-8;' });
+    } else {
+      blob = new Blob([data.toString()], { type: 'text/plain;charset=utf-8' });
+    }
+    let downloadUrl = document.createElement('a');
     let url = URL.createObjectURL(blob);
     let isSafariBrowser = navigator.userAgent.indexOf('Safari') != -1 && navigator.userAgent.indexOf('Chrome') == -1;
     if (isSafariBrowser) {
-      downloadUrl.setAttribute("target", "_blank");
+      downloadUrl.setAttribute('target', '_blank');
     }
-    downloadUrl.setAttribute("href", url);
-    downloadUrl.setAttribute("download", filename + ".csv");
-    downloadUrl.style.visibility = "hidden";
+    downloadUrl.setAttribute('href', url);
+    downloadUrl.setAttribute('download', filename + toFormat);
+    downloadUrl.style.visibility = 'hidden';
     document.body.appendChild(downloadUrl);
     downloadUrl.click();
     document.body.removeChild(downloadUrl);
@@ -238,6 +276,14 @@ export class CommonService implements OnInit {
       csvStrArray += dataRow.slice(0, -1) + '\r\n';
     });
     return csvStrArray;
+  }
+
+  isVersionCompatible(currentVersion, checkVersion) {
+    let versionsArr = currentVersion.trim().replace('v', '').split('-')[0].split('.');
+    let checkVersionsArr = checkVersion.split('.');
+    return (+versionsArr[0] > +checkVersionsArr[0])
+    || (+versionsArr[0] === +checkVersionsArr[0] && +versionsArr[1] > +checkVersionsArr[1])
+    || (+versionsArr[0] === +checkVersionsArr[0] && +versionsArr[1] === +checkVersionsArr[1] && +versionsArr[2] >= +checkVersionsArr[2]);
   }
 
 }

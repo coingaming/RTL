@@ -1,11 +1,11 @@
 var request = require('request-promise');
 var common = require('../../common');
-var logger = require('../logger');
+var logger = require('../shared/logger');
 var options = {};
 
 exports.getNewAddress = (req, res, next) => {
   options = common.getOptions();
-  options.url = common.getSelLNServerUrl() + '/newaddress?type=' + req.query.type;
+  options.url = common.getSelLNServerUrl() + '/v1/newaddress?type=' + req.query.type;
   request(options).then((body) => {
     const body_str = (!body) ? '' : JSON.stringify(body);
     const search_idx = (!body) ? -1 : body_str.search('Not Found');
